@@ -850,6 +850,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   }
   .menu-item-danger:hover { background: rgba(192,57,43,0.18); transform: translateY(-2px); }
 
+  .menu-item-ok {
+    background: none; border: none; color: #BDEBC8; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: background 0.35s ease, transform 0.35s ease;
+  }
+  .menu-item-ok:hover { background: rgba(60,160,90,0.22); transform: translateY(-2px); }
+  .btn-undo {
+    background: rgba(255,255,255,0.10); border: none; color: #FFFFFF; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700;
+    border-radius: 999px; padding: 4px 11px; cursor: pointer; transition: background 0.35s ease, transform 0.35s ease;
+  }
+  .btn-undo:hover { background: rgba(255,255,255,0.20); transform: translateY(-2px); }
+
   #root { min-height: 100vh; }
 </style>
 </head>
@@ -1368,7 +1379,8 @@ function ProgressGaugeCard({ value, goalPct, sub, delay }) {
 /* ---------------------------------------------------------
    GENERIC LINE+AREA CHART (used for "Vendas do mês" and "Vendas de hoje")
 --------------------------------------------------------- */
-function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill }) {
+function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill, xKey, xMin, xMax, xTicks }) {
+  const numericX = xKey != null;
   /* Measure the drawing area so the SVG is drawn 1:1 (no stretched text) and fits any card */
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ w: 620, h: 240 });
@@ -1391,7 +1403,7 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
     for (let i = rawData.length - 1; i >= 0; i--) if (rawData[i][valueKey] != null) return i;
     return rawData.length - 1;
   })();
-  const data = rawData.slice(0, lastValidIdx + 1);
+  const data = numericX ? rawData : rawData.slice(0, lastValidIdx + 1);
   const W = Math.max(240, size.w), H = Math.max(130, size.h);
   const padL = 44, padR = 12, padT = 12, padB = 28;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -1404,7 +1416,8 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
   const nTicks = Math.max(1, Math.ceil(rawMax / niceStep));
   const yMax = nTicks * niceStep;
   const tickLabel = (v) => (v === 0 ? "0" : v % 1000 === 0 ? `${v / 1000}k` : v < 1000 ? String(v) : `${(v / 1000).toFixed(1).replace(".", ",")}k`);
-  const xScale = (i) => padL + (N > 1 ? (i / (N - 1)) * plotW : plotW / 2);
+  const xAt = (v) => padL + ((v - xMin) / ((xMax - xMin) || 1)) * plotW;
+  const xScale = (i) => (numericX ? xAt(data[i][xKey]) : padL + (N > 1 ? (i / (N - 1)) * plotW : plotW / 2));
   const yScale = (v) => padT + plotH - (v / yMax) * plotH;
 
   const pts = [];
@@ -1413,7 +1426,9 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
   const areaPath = pts.length
     ? `${linePath} L ${pts[pts.length - 1][1].toFixed(1)} ${(padT + plotH).toFixed(1)} L ${pts[0][1].toFixed(1)} ${(padT + plotH).toFixed(1)} Z`
     : "";
-  const goalPath = goalKey
+  const goalPath = numericX
+    ? `M ${padL} ${yScale(goal).toFixed(1)} L ${(W - padR).toFixed(1)} ${yScale(goal).toFixed(1)}`
+    : goalKey
     ? data.map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(i).toFixed(1)} ${yScale(d[goalKey] != null ? d[goalKey] : goal).toFixed(1)}`).join(" ")
     : `M ${xScale(0).toFixed(1)} ${yScale(goal).toFixed(1)} L ${xScale(N - 1).toFixed(1)} ${yScale(goal).toFixed(1)}`;
 
@@ -1425,6 +1440,13 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
   const handleMove = (e) => {
     const rect = svgRef.current.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * W;
+    if (N === 0) return;
+    if (numericX) {
+      let best = 0;
+      for (let i = 1; i < N; i++) if (Math.abs(xScale(i) - relX) < Math.abs(xScale(best) - relX)) best = i;
+      setHoverIdx(best);
+      return;
+    }
     const idxFloat = N > 1 ? ((relX - padL) / plotW) * (N - 1) : 0;
     const idx = Math.max(0, Math.min(N - 1, Math.round(idxFloat)));
     setHoverIdx(idx);
@@ -1472,7 +1494,15 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
             </g>
           ))}
 
-          {data.map((d, i) => {
+          {numericX && (xTicks || []).map((t) => (
+            <g key={`xt${t}`}>
+              <line x1={xAt(t)} x2={xAt(t)} y1={padT} y2={padT + plotH} stroke={COLORS.line} strokeWidth="1" opacity="0.55" />
+              <text x={xAt(t)} y={H - 8} textAnchor="middle" fontSize={plotW / (xTicks.length || 1) < 30 ? 10.5 : 12} fill={COLORS.textFaint} fontFamily="Montserrat, sans-serif">
+                {`${t}h`}
+              </text>
+            </g>
+          ))}
+          {!numericX && data.map((d, i) => {
             const label = xTickLabel(d, i, data);
             if (!label) return null;
             return (
@@ -1486,6 +1516,9 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
           <path d={goalPath} stroke={COLORS.accent} strokeWidth="2" strokeDasharray="6 5" fill="none" />
           <path d={linePath} stroke={COLORS.blue} strokeWidth="2.5" fill="none" strokeLinejoin="round" strokeLinecap="round" />
 
+          {numericX && N > 0 && (data[N - 1].now || N === 1) && data[N - 1][valueKey] != null && (
+            <circle cx={xScale(N - 1)} cy={yScale(data[N - 1][valueKey])} r="4" fill={COLORS.blue} stroke={COLORS.bg} strokeWidth="2" />
+          )}
           {hoverData && hoverData[valueKey] != null && (
             <>
               <line x1={xScale(hoverIdx)} x2={xScale(hoverIdx)} y1={padT} y2={padT + plotH} stroke={COLORS.textFaint} strokeDasharray="3 3" />
@@ -1589,7 +1622,7 @@ function PieCard({ title, subtitle, data, valueFormatter, centerMain, centerSub,
   );
 }
 
-function Avatar({ initials, color, size = 30, photo }) {
+function Avatar({ initials, color, size = 30, photo, onColor }) {
   if (photo) {
     return (
       <img
@@ -1600,7 +1633,7 @@ function Avatar({ initials, color, size = 30, photo }) {
     );
   }
   return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: `${color}26`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 800, color, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: "50%", background: onColor ? "rgba(0,0,0,0.3)" : `${color}26`, boxShadow: onColor ? `0 0 0 2px ${color}` : undefined, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 800, color: onColor ? "#F2E8D8" : color, flexShrink: 0 }}>
       {initials}
     </div>
   );
@@ -2086,7 +2119,7 @@ function ProductCancelModal({ sale, onSubmit, onClose }) {
   );
 }
 
-function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct, sellerDirectory }) {
+function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, sellerDirectory }) {
   const [closing, setClosing] = useState(false);
   const [productCancelOpen, setProductCancelOpen] = useState(false);
   const handleClose = () => { setClosing(true); setTimeout(onClose, 180); };
@@ -2139,7 +2172,12 @@ function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct,
                 <div style={{ fontSize: 13, color: "#FFC7C0", fontWeight: 600 }}>
                   Produto cancelado{p.name ? `: ${p.name}` : ""}{p.ref ? ` (${p.ref})` : ""}
                 </div>
-                <div style={{ fontSize: 13.5, color: "#FFC7C0", fontWeight: 700 }}>-{brl(p.value)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <div style={{ fontSize: 13.5, color: "#FFC7C0", fontWeight: 700 }}>-{brl(p.value)}</div>
+                  {!sale.cancelled && (
+                    <button type="button" className="btn-undo" onClick={() => onRestoreProduct(sale.id, p.id)}>Desfazer</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -2166,6 +2204,19 @@ function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct,
           </span>
           <span style={{ fontSize: 21, fontWeight: 800, color: COLORS.accent }}><Masked value={brl(netTotal)} hidden={false} /></span>
         </div>
+
+        {sale.cancelled && (
+          <div style={{ display: "flex", marginTop: 16 }}>
+            <button
+              type="button"
+              onClick={() => { onRestoreSale(sale.id); onClose(); }}
+              className="btn-success"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1, padding: "12px 14px", borderRadius: 12, fontSize: 12.5 }}
+            >
+              DESFAZER CANCELAMENTO
+            </button>
+          </div>
+        )}
 
         {!sale.cancelled && (
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -2213,7 +2264,7 @@ function directionLabel(field, desc) {
   return desc ? "Z–A" : "A–Z";
 }
 
-function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct, sellerDirectory }) {
+function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, sellerDirectory }) {
   const [closing, setClosing] = useState(false);
   const [sortField, setSortField] = useState("time");
   const [sortDesc, setSortDesc] = useState(true);
@@ -2351,12 +2402,11 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
                   onClick={() => setDetailSale(s)}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    if (s.cancelled) return;
                     setContextMenu({ x: e.clientX, y: e.clientY, sale: s });
                   }}
                   style={{
                     position: "relative", overflow: "hidden", cursor: "pointer", flexShrink: 0,
-                    background: darken(PAYMENT_COLORS[s.payment] || "#2E5E7E", 0.32),
+                    background: darken(info.color || "#2E5E7E", 0.4),
                     borderRadius: 12, padding: "8px 14px",
                     opacity: s.cancelled ? 0.9 : 1, transition: "background 0.35s ease",
                   }}
@@ -2372,7 +2422,7 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
                     </div>
                   )}
                   <div className="sr-who" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <Avatar initials={info.initials || "?"} color={info.color || MC_FAINT} photo={info.photo} size={28} />
+                    <Avatar initials={info.initials || "?"} color={info.color || MC_FAINT} photo={info.photo} size={28} onColor />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{s.seller}</div>
                       <div style={{ fontSize: 12.5, color: MC_DIM, overflowWrap: "anywhere" }}>{s.time}{s.client ? ` · ${s.client}` : ""}</div>
@@ -2420,27 +2470,40 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
             overflow: "hidden", minWidth: 190,
           }}
         >
-          <button
-            type="button"
-            onClick={() => { setProductCancelSale(contextMenu.sale); setContextMenu(null); }}
-            className="menu-item-danger"
-            style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
-          >
-            <Ban size={15} /> Cancelar produto
-          </button>
-          <button
-            type="button"
-            onClick={() => { onCancelSale(contextMenu.sale.id); setContextMenu(null); }}
-            className="menu-item-danger"
-            style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
-          >
-            <Ban size={15} /> Cancelar venda
-          </button>
+          {contextMenu.sale.cancelled ? (
+            <button
+              type="button"
+              onClick={() => { onRestoreSale(contextMenu.sale.id); setContextMenu(null); }}
+              className="menu-item-ok"
+              style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
+            >
+              Desfazer cancelamento
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => { setProductCancelSale(contextMenu.sale); setContextMenu(null); }}
+                className="menu-item-danger"
+                style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
+              >
+                <Ban size={15} /> Cancelar produto
+              </button>
+              <button
+                type="button"
+                onClick={() => { onCancelSale(contextMenu.sale.id); setContextMenu(null); }}
+                className="menu-item-danger"
+                style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
+              >
+                <Ban size={15} /> Cancelar venda
+              </button>
+            </>
+          )}
         </div>
       )}
 
       {detailSale && (
-        <SaleDetailModal sale={detailSale} hidden={hidden} onClose={() => setDetailSale(null)} onCancelSale={onCancelSale} onCancelProduct={onCancelProduct} sellerDirectory={sellerDirectory} />
+        <SaleDetailModal sale={sales.find((x) => x.id === detailSale.id) || detailSale} hidden={hidden} onClose={() => setDetailSale(null)} onCancelSale={onCancelSale} onCancelProduct={onCancelProduct} onRestoreSale={onRestoreSale} onRestoreProduct={onRestoreProduct} sellerDirectory={sellerDirectory} />
       )}
 
       {productCancelSale && (
@@ -3076,6 +3139,113 @@ function ClientRow({ client, purchases, open, onToggle, onSave }) {
   );
 }
 
+/* Foto da vendedora: envio do aparelho + enquadramento (arrastar e zoom) dentro da bolinha.
+   O resultado vira uma imagem quadrada pequena (256px) guardada no próprio cadastro. */
+function PhotoPicker({ value, onChange, color, initials }) {
+  const P = 150, OUT = 256;
+  const [img, setImg] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [err, setErr] = useState("");
+  const drag = useRef(null);
+  const fileRef = useRef(null);
+  const dimsOf = (im, z) => { const sc = (P / Math.min(im.width, im.height)) * z; return { iw: im.width * sc, ih: im.height * sc }; };
+  const clampPos = (p, im, z) => {
+    const d = dimsOf(im, z);
+    const mx = Math.max(0, (d.iw - P) / 2), my = Math.max(0, (d.ih - P) / 2);
+    return { x: Math.max(-mx, Math.min(mx, p.x)), y: Math.max(-my, Math.min(my, p.y)) };
+  };
+  /* Se já existe uma foto enviada daqui, carrega para poder reenquadrar */
+  useEffect(() => {
+    if (img || !value || !value.startsWith("data:")) return;
+    const im = new Image();
+    im.onload = () => setImg(im);
+    im.src = value;
+  }, []);
+  /* Gera a imagem final sempre que o enquadramento muda */
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!img || !touched.current) return;
+    try {
+      const cv = document.createElement("canvas");
+      cv.width = OUT; cv.height = OUT;
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#16324A"; ctx.fillRect(0, 0, OUT, OUT);
+      const d = dimsOf(img, zoom), k = OUT / P;
+      ctx.drawImage(img, ((P - d.iw) / 2 + pos.x) * k, ((P - d.ih) / 2 + pos.y) * k, d.iw * k, d.ih * k);
+      onChange(cv.toDataURL("image/jpeg", 0.85));
+    } catch (e) { setErr("Não foi possível usar essa imagem."); }
+  }, [img, zoom, pos]);
+
+  const pickFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { setErr("Escolha um arquivo de imagem (JPG, PNG...)."); return; }
+    setErr("");
+    const r = new FileReader();
+    r.onload = () => {
+      const im = new Image();
+      im.onload = () => { touched.current = true; setZoom(1); setPos({ x: 0, y: 0 }); setImg(im); };
+      im.onerror = () => setErr("Não foi possível abrir essa imagem.");
+      im.src = r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  const remove = () => { touched.current = false; setImg(null); setZoom(1); setPos({ x: 0, y: 0 }); setErr(""); onChange(""); };
+  const down = (e) => {
+    if (!img) return;
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, p: pos };
+  };
+  const move = (e) => {
+    if (!drag.current || !img) return;
+    touched.current = true;
+    setPos(clampPos({ x: drag.current.p.x + (e.clientX - drag.current.x), y: drag.current.p.y + (e.clientY - drag.current.y) }, img, zoom));
+  };
+  const up = () => { drag.current = null; };
+  const onZoom = (z) => { touched.current = true; setZoom(z); if (img) setPos((p) => clampPos(p, img, z)); };
+  const d = img ? dimsOf(img, zoom) : null;
+  const hasPhoto = !!img || !!value;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 16 }}>
+      <div
+        data-photo-preview="1"
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        style={{ position: "relative", width: P, height: P, borderRadius: "50%", overflow: "hidden", background: `${color}26`, boxShadow: `0 0 0 3px ${color}`, touchAction: "none", cursor: img ? "grab" : "default", flexShrink: 0 }}
+      >
+        {img ? (
+          <img src={img.src} alt="" draggable={false}
+               style={{ position: "absolute", maxWidth: "none", width: d.iw, height: d.ih, left: (P - d.iw) / 2 + pos.x, top: (P - d.ih) / 2 + pos.y, userSelect: "none", pointerEvents: "none" }} />
+        ) : value ? (
+          <img src={value} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+        ) : (
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, fontWeight: 800, color }}>{initials || "?"}</div>
+        )}
+      </div>
+      {img && (
+        <>
+          <div style={{ fontSize: 12.5, color: MC_DIM }}>Arraste a foto para enquadrar</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", maxWidth: 260 }}>
+            <span style={{ fontSize: 12, color: MC_DIM, fontWeight: 600 }}>Zoom</span>
+            <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={(e) => onZoom(Number(e.target.value))} style={{ flex: 1, accentColor: COLORS.accent }} />
+          </div>
+        </>
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+        <input ref={fileRef} type="file" accept="image/*" onChange={pickFile} style={{ display: "none" }} data-photo-file="1" />
+        <button type="button" className="btn-secondary" style={{ padding: "8px 16px", fontSize: 13 }} onClick={() => fileRef.current && fileRef.current.click()}>
+          {hasPhoto ? "Trocar foto" : "Escolher foto do aparelho"}
+        </button>
+        {hasPhoto && (
+          <button type="button" className="btn-danger-outline" style={{ padding: "8px 14px", fontSize: 13, borderRadius: 999 }} onClick={remove}>Remover</button>
+        )}
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: "#FFC7C0", fontWeight: 600 }}>{err}</div>}
+    </div>
+  );
+}
+
 function SellerEditModal({ name, seller, onSave, onDelete, onClose }) {
   const [closing, setClosing] = useState(false);
   const [color, setColor] = useState(seller.color);
@@ -3105,8 +3275,8 @@ function SellerEditModal({ name, seller, onSave, onDelete, onClose }) {
           {SWATCHES.map((c) => <Swatch key={c} color={c} size={22} selected={c === color} onClick={() => setColor(c)} />)}
         </div>
 
-        <label style={fieldLabel}>Foto (link de uma imagem na internet, opcional)</label>
-        <input className="white-field" value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder="https://..." style={{ ...fieldInput, marginBottom: 16 }} />
+        <label style={{ ...fieldLabel, textAlign: "center" }}>Foto (opcional)</label>
+        <PhotoPicker value={photo} onChange={setPhoto} color={color} initials={seller.initials} />
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
           <div style={{ flex: "1 1 160px" }}>
@@ -3163,8 +3333,8 @@ function AddSellerModal({ sellerDirectory, onAdd, onClose }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {SWATCHES.map((c) => <Swatch key={c} color={c} size={22} selected={c === color} onClick={() => setColor(c)} />)}
         </div>
-        <label style={fieldLabel}>Foto (link de uma imagem na internet, opcional)</label>
-        <input className="white-field" value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder="https://..." style={{ ...fieldInput, marginBottom: 16 }} />
+        <label style={{ ...fieldLabel, textAlign: "center" }}>Foto (opcional)</label>
+        <PhotoPicker value={photo} onChange={setPhoto} color={color} initials={trimmed.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("")} />
         <label style={fieldLabel}>Data de admissão (opcional)</label>
         <input className="white-field" type="date" value={hiredAt} onChange={(e) => setHiredAt(e.target.value)} style={fieldInput} />
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
@@ -3607,6 +3777,17 @@ function SalesDashboard({ initial, email, onSignOut }) {
     setAllSales((prev) => prev.map((s) => (s.id === id ? { ...s, cancelled: true } : s)));
     persist(db.updateSale(id, { cancelled: true }));
   };
+  const restoreSale = (id) => {
+    setAllSales((prev) => prev.map((s) => (s.id === id ? { ...s, cancelled: false } : s)));
+    persist(db.updateSale(id, { cancelled: false }));
+  };
+  const restoreProduct = (id, pid) => {
+    const s = allSales.find((x) => x.id === id);
+    if (!s) return;
+    const list = (s.partialCancels || []).filter((p) => p.id !== pid);
+    setAllSales((prev) => prev.map((x) => (x.id === id ? { ...x, partialCancels: list } : x)));
+    persist(db.updateSale(id, { partialCancels: list }));
+  };
   const cancelProduct = (id, entry) => {
     const s = allSales.find((x) => x.id === id);
     if (!s) return;
@@ -3713,17 +3894,24 @@ function SalesDashboard({ initial, email, onSignOut }) {
     return { openHour: minH, closeHour: maxH };
   }, [activeSales]);
 
-  const hourlyData = useMemo(() => {
-    const now = new Date();
-    const nowHour = isToday ? Math.min(Math.max(now.getHours() + now.getMinutes() / 60, openHour), closeHour) : closeHour;
-    const hours = [];
-    for (let h = openHour; h <= closeHour; h++) hours.push(h);
-    return hours.map((h) => {
-      if (h > nowHour + 0.001) return { hour: h, vendas: null };
-      const cumulative = activeSales.reduce((sum, s) => (hourDecimalOf(s, openHour, closeHour) <= h ? sum + effectiveSaleTotal(s) : sum), 0);
-      return { hour: h, vendas: cumulative };
-    });
-  }, [activeSales, openHour, closeHour, isToday]);
+  /* Gráfico por horário: uma marca por hora; hoje o eixo vai sempre até 1 hora à frente da hora atual */
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { if (!isToday) return; const t = setInterval(() => setNowTick(Date.now()), 30000); return () => clearInterval(t); }, [isToday]);
+  const hourlyInfo = useMemo(() => {
+    const now = new Date(nowTick);
+    const nowDec = now.getHours() + now.getMinutes() / 60;
+    const axisMin = openHour;
+    const axisMax = isToday ? Math.max(Math.floor(nowDec) + 1, axisMin + 1, ...activeSales.map((x) => Math.ceil(rawHourDecimal(x)))) : closeHour;
+    const cumUntil = (limit) => activeSales.reduce((sum, s) => (rawHourDecimal(s) <= limit + 1e-9 ? sum + effectiveSaleTotal(s) : sum), 0);
+    const pts = [];
+    const lastInt = isToday ? Math.min(Math.floor(nowDec), axisMax) : axisMax;
+    for (let h = axisMin; h <= lastInt; h++) pts.push({ hour: h, vendas: cumUntil(h) });
+    if (isToday && nowDec >= axisMin && nowDec > lastInt + 1e-9) pts.push({ hour: nowDec, vendas: cumUntil(24), now: true });
+    const ticks = [];
+    for (let h = axisMin; h <= axisMax; h++) ticks.push(h);
+    return { pts, ticks, axisMin, axisMax };
+  }, [activeSales, openHour, closeHour, isToday, nowTick]);
+  const hourlyData = hourlyInfo.pts;
 
   const sellerTotals = useMemo(() => {
     const names = Object.keys(sellerDirectory);
@@ -3891,8 +4079,12 @@ function SalesDashboard({ initial, email, onSignOut }) {
             data={hourlyData}
             valueKey="vendas"
             goal={todayGoal}
-            xTickLabel={(d) => (d.hour % 2 === 0 ? `${d.hour}h` : null)}
-            tooltipLabel={(d) => `${d.hour}h`}
+            xKey="hour"
+            xMin={hourlyInfo.axisMin}
+            xMax={hourlyInfo.axisMax}
+            xTicks={hourlyInfo.ticks}
+            xTickLabel={() => null}
+            tooltipLabel={(d) => (d.now ? `Agora · ${pad2(Math.floor(d.hour))}:${pad2(Math.round((d.hour % 1) * 60) % 60)}` : `${d.hour}h`)}
             hidden={hidden}
           />
         </div>
@@ -3924,7 +4116,7 @@ function SalesDashboard({ initial, email, onSignOut }) {
       </div>
 
       {modalOpen && <NovaVendaModal isToday={isToday} dateLabel={parseISO(selectedDate).toLocaleDateString("pt-BR")} onClose={() => setModalOpen(false)} onSubmit={addSale} sellers={Object.keys(sellerDirectory).filter((n) => sellerDirectory[n].active !== false)} categories={categories} clients={clients} allSales={allSales} onSaveClient={saveClient} />}
-      {listOpen && <SalesListModal onClose={() => setListOpen(false)} sales={sales} hidden={hidden} onCancelSale={cancelSale} onCancelProduct={cancelProduct} sellerDirectory={sellerDirectory} />}
+      {listOpen && <SalesListModal onClose={() => setListOpen(false)} sales={sales} hidden={hidden} onCancelSale={cancelSale} onCancelProduct={cancelProduct} onRestoreSale={restoreSale} onRestoreProduct={restoreProduct} sellerDirectory={sellerDirectory} />}
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {sharedModals}
 

@@ -824,6 +824,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   }
   .suggest-item:hover { background: #EEF3F7; }
 
+  .cat-chip {
+    border: none; border-radius: 999px; padding: 8px 14px; font-family: 'Montserrat', sans-serif; font-size: 13px; cursor: pointer; line-height: 1.2;
+    transition: background 0.35s ease, color 0.35s ease, transform 0.35s ease;
+  }
+  .cat-chip:hover { transform: translateY(-2px); }
+
   .field-focus:focus { box-shadow: 0 0 0 2px rgba(28,63,88,0.25); }
 
   .nav-btn {
@@ -860,6 +866,24 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
     border-radius: 999px; padding: 4px 11px; cursor: pointer; transition: background 0.35s ease, transform 0.35s ease;
   }
   .btn-undo:hover { background: rgba(255,255,255,0.20); transform: translateY(-2px); }
+
+  .menu-item-edit {
+    background: none; border: none; color: #F2E8D8; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: background 0.35s ease, transform 0.35s ease;
+  }
+  .menu-item-edit:hover { background: rgba(255,255,255,0.10); transform: translateY(-2px); }
+  .seller-pick {
+    position: relative; border: none; background: none; padding: 0; border-radius: 50%; cursor: pointer; line-height: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease, box-shadow 0.35s ease;
+  }
+  .seller-pick:hover { opacity: 1 !important; transform: translateY(-2px) scale(1.06); }
+  .seller-pick::after {
+    content: attr(data-name); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
+    background: #0E2233; color: #F2E8D8; font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 700; line-height: 1.2;
+    padding: 6px 10px; border-radius: 8px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; z-index: 30;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .seller-pick:hover::after, .seller-pick:focus-visible::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   #root { min-height: 100vh; }
 </style>
@@ -901,6 +925,7 @@ const CalendarIcon = (p) => <Icon {...p}><rect x="3" y="4" width="18" height="18
 const ChevronLeft = (p) => <Icon {...p}><polyline points="15 18 9 12 15 6"/></Icon>;
 const MenuIcon = (p) => <Icon {...p}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></Icon>;
 const Lock = (p) => <Icon {...p}><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></Icon>;
+const Gift = (p) => <Icon {...p}><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></Icon>;
 const Bell = (p) => <Icon {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></Icon>;
 const Pencil = (p) => <Icon {...p}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></Icon>;
 const Undo = (p) => <Icon {...p}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></Icon>;
@@ -936,8 +961,8 @@ const PRODUCT_COLORS = ["#E2D1BD", "#5FA0C7", "#8FA98C", "#C9A467", "#B9714B"];
    (the pie chart's color-by-rank would otherwise shift as totals change) */
 const PAYMENT_COLORS = {
   "Pix": "#5FA0C7",
-  "Cartão de Crédito": "#C9A467",
-  "Cartão de Débito": "#8FA98C",
+  "Crédito": "#C9A467",
+  "Débito": "#8FA98C",
   "Dinheiro": "#E2D1BD",
   "Vale": "#B9714B",
   "Promissória": "#9B7BA0",
@@ -966,7 +991,7 @@ const DEFAULT_CLOSE_HOUR = 19;
 const SELLER_INFO = {};
 const SELLER_NAMES = Object.keys(SELLER_INFO);
 
-const PAYMENT_METHODS = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Vale", "Promissória"];
+const PAYMENT_METHODS = ["Pix", "Crédito", "Débito", "Dinheiro", "Vale", "Promissória"];
 
 /* Sem categorias por padrão — cadastre as reais em Configurações */
 const DEFAULT_CATEGORIES = [];
@@ -1064,15 +1089,47 @@ async function sbSelectAll(table, order) {
 }
 const dateOrNull = (v) => (v ? v : null);
 
+/* Nomes antigos das formas de pagamento -> nomes novos (vendas já salvas continuam valendo) */
+const PAYMENT_LEGACY = { "Cartão de Crédito": "Crédito", "Cartão de Débito": "Débito" };
+const normPay = (m) => PAYMENT_LEGACY[m] || m;
+/* Nomes de clientes e produtos: cada palavra com a primeira letra maiúscula e o resto minúsculo */
+const titleCase = (v) => String(v || "").trim().replace(/\s+/g, " ").toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase());
+/* Valor em reais digitado em campo de texto ("30", "30,5", "1.234,56", "30.50") -> número com 2 casas */
+const parseMoney = (str) => {
+  let t = String(str == null ? "" : str).replace(/[^\d.,]/g, "");
+  if (!t) return 0;
+  const lc = t.lastIndexOf(","), ld = t.lastIndexOf(".");
+  if (lc >= 0 && ld >= 0) t = lc > ld ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "");
+  else if (lc >= 0) t = t.replace(/\./g, "").replace(/,(?=.*,)/g, "").replace(",", ".");
+  else if (ld >= 0 && t.split(".").length > 2) t = t.replace(/\./g, "");
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+};
+const fmtMoney = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace(".", ",");
+const cleanMoneyText = (v) => String(v).replace(/[^\d.,]/g, "").slice(0, 14);
+/* Pagamento dividido: texto "Crédito + Pix + Dinheiro" e partes de cada forma no valor final da venda */
+const payLabel = (pays) => pays.map((p) => normPay(p.method)).join(" + ");
+const LASTCAT_KEY = "caravela.lastCategory.v1";
+const getLastCategory = (categories) => {
+  try { const v = localStorage.getItem(LASTCAT_KEY); return v && categories.some((c) => c.name === v) ? v : ""; } catch (e) { return ""; }
+};
+const setLastCategory = (name) => { try { localStorage.setItem(LASTCAT_KEY, name); } catch (e) {} };
+
 /* Conversão linha do banco <-> objeto do app */
-const saleFromRow = (r) => ({
-  id: r.id, date: r.sale_date, day: Number(String(r.sale_date).slice(8, 10)), time: r.sale_time,
-  seller: r.seller, client: r.client || "", payment: r.payment, total: Number(r.total), notes: r.notes || "",
-  cancelled: !!r.cancelled, items: r.items || [], partialCancels: r.partial_cancels || [], createdAt: Date.parse(r.created_at) || 0,
-});
+const saleFromRow = (r) => {
+  const pays = Array.isArray(r.payments) ? r.payments.map((x) => ({ method: normPay(x.method), amount: Number(x.amount) || 0 })) : [];
+  const split = pays.length > 1;
+  return {
+    id: r.id, date: r.sale_date, day: Number(String(r.sale_date).slice(8, 10)), time: r.sale_time,
+    seller: r.seller, client: titleCase(r.client), payment: split ? payLabel(pays) : normPay(r.payment), payments: split ? pays : [],
+    total: Number(r.total), notes: r.notes || "",
+    cancelled: !!r.cancelled, items: (r.items || []).map((it) => ({ ...it, name: titleCase(it.name) })), partialCancels: r.partial_cancels || [], createdAt: Date.parse(r.created_at) || 0,
+  };
+};
 const saleToRow = (s, ownerId) => ({
   id: s.id, owner_id: ownerId, sale_date: s.date, sale_time: s.time, seller: s.seller, client: s.client || "",
   payment: s.payment, total: s.total, notes: s.notes || "", cancelled: !!s.cancelled, items: s.items, partial_cancels: s.partialCancels || [],
+  ...(s.payments && s.payments.length > 1 ? { payments: s.payments } : {}),
 });
 const sellerToRow = (name, e, ownerId) => ({
   owner_id: ownerId, name, initials: e.initials || "", color: e.color || "#E2D1BD", photo: e.photo || "",
@@ -1091,10 +1148,31 @@ const db = {
     ]);
     const sellerDirectory = {};
     sellers.forEach((r) => { sellerDirectory[r.name] = { initials: r.initials, color: r.color, photo: r.photo, active: r.active, hiredAt: r.hired_at || "", terminatedAt: r.terminated_at || "" }; });
+    /* Corrige em segundo plano os nomes já salvos fora do padrão (Maiúsculas Corretas) */
+    const fixes = [];
+    const seenClient = new Set();
+    const clientsFixed = [];
+    clients.forEach((r) => {
+      const n = titleCase(r.name);
+      if (n !== r.name) fixes.push(() => sbRest("clients", { method: "PATCH", query: `?id=eq.${encodeURIComponent(r.id)}`, body: { name: n }, prefer: "return=minimal" }));
+      const key = normName(n);
+      if (seenClient.has(key)) return;
+      seenClient.add(key);
+      clientsFixed.push({ id: r.id, name: n, phone: r.phone || "", birthday: r.birthday || "", instagram: !!r.instagram, vip: !!r.vip });
+    });
+    sales.forEach((r) => {
+      const c = titleCase(r.client);
+      const its = (r.items || []).map((it) => ({ ...it, name: titleCase(it.name) }));
+      const changed = c !== (r.client || "") || its.some((it, i) => it.name !== r.items[i].name);
+      if (changed) fixes.push(() => sbRest("sales", { method: "PATCH", query: `?id=eq.${encodeURIComponent(r.id)}`, body: { client: c, items: its }, prefer: "return=minimal" }));
+    });
+    if (fixes.length) {
+      (async () => { for (const f of fixes) { try { await f(); } catch (e) { /* tenta de novo no próximo acesso */ } } })();
+    }
     return {
       sellerDirectory,
       categories: categories.map((r) => ({ id: r.id, name: r.name })),
-      clients: clients.map((r) => ({ id: r.id, name: r.name, phone: r.phone || "", birthday: r.birthday || "", instagram: !!r.instagram, vip: !!r.vip })),
+      clients: clientsFixed,
       sales: sales.map(saleFromRow),
       goalHistory: goals.map((r) => ({ date: r.effective_date, daily: Number(r.daily_goal), monthly: Number(r.monthly_goal) })),
       birthdayMessage: settings && settings[0] && settings[0].birthday_message ? settings[0].birthday_message : DEFAULT_BIRTHDAY_MESSAGE,
@@ -1106,6 +1184,8 @@ const db = {
     const row = {};
     if ("cancelled" in patch) row.cancelled = !!patch.cancelled;
     if ("partialCancels" in patch) row.partial_cancels = patch.partialCancels;
+    const map = { date: "sale_date", time: "sale_time", seller: "seller", client: "client", payment: "payment", total: "total", notes: "notes", items: "items", payments: "payments" };
+    Object.keys(map).forEach((k) => { if (k in patch) row[map[k]] = patch[k]; });
     return sbRest("sales", { method: "PATCH", query: `?id=eq.${encodeURIComponent(id)}`, body: row, prefer: "return=minimal" });
   },
   upsertSeller(name, e) { return sbRest("sellers", { method: "POST", query: "?on_conflict=owner_id,name", body: sellerToRow(name, e, db.ownerId()), prefer: "resolution=merge-duplicates,return=minimal" }); },
@@ -1186,6 +1266,39 @@ const allocateItemCents = (s) => {
   return shares;
 };
 
+/* Quanto de cada forma de pagamento entrou numa venda (em centavos), já descontando cancelamentos */
+const salePaymentShares = (s) => {
+  const eff = Math.round(effectiveSaleTotal(s) * 100);
+  const list = s.payments && s.payments.length > 1 ? s.payments : [{ method: s.payment, amount: s.total }];
+  const gross = list.map((p) => Math.round((Number(p.amount) || 0) * 100));
+  const sum = gross.reduce((a, b) => a + b, 0);
+  const shares = list.map((_, i) => (sum > 0 ? Math.round((eff * gross[i]) / sum) : i === 0 ? eff : 0));
+  shares[shares.length - 1] += eff - shares.reduce((a, b) => a + b, 0);
+  return list.map((p, i) => ({ method: normPay(p.method), cents: shares[i] }));
+};
+
+/* Itens para os relatórios em PDF: iguais pela REFERÊNCIA (não pelo nome) e só os que têm referência.
+   Valores pelo preço final (com desconto), em centavos. */
+const aggregateItemsByRef = (list) => {
+  const map = {};
+  list.forEach((s) => {
+    const shares = allocateItemCents(s);
+    s.items.forEach((it, i) => {
+      const ref = String(it.ref || "").trim();
+      if (!ref) return;
+      const key = ref.toLowerCase();
+      const e = map[key] || (map[key] = { ref, name: "", category: "", qty: 0, cents: 0 });
+      if (!e.name && it.name) e.name = String(it.name).trim();
+      if (!e.category && it.category) e.category = it.category;
+      e.qty += Number(it.qty) || 0;
+      e.cents += shares[i] || 0;
+    });
+  });
+  return Object.values(map)
+    .map((e) => ({ ...e, value: e.cents / 100 }))
+    .sort((a, b) => b.qty - a.qty || b.value - a.value);
+};
+
 /* Fechamento: soma vendas, formas de pagamento e itens (todos pelo preço final, com desconto) */
 const computeMonthClosing = (list) => {
   const byPayment = {};
@@ -1196,9 +1309,11 @@ const computeMonthClosing = (list) => {
   list.forEach((s) => {
     const cents = Math.round(effectiveSaleTotal(s) * 100);
     totalCents += cents;
-    const p = byPayment[s.payment] || (byPayment[s.payment] = { cents: 0, count: 0 });
-    p.cents += cents;
-    p.count += 1;
+    salePaymentShares(s).forEach((sh) => {
+      const p = byPayment[sh.method] || (byPayment[sh.method] = { cents: 0, count: 0 });
+      p.cents += sh.cents;
+      p.count += 1;
+    });
     const shares = allocateItemCents(s);
     s.items.forEach((it, i) => {
       const qty = Number(it.qty) || 0;
@@ -1722,37 +1837,99 @@ function ToggleChip({ label, on, onClick }) {
   );
 }
 
-function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSales, onSaveClient, isToday = true, dateLabel = "" }) {
-  const [pastTime, setPastTime] = useState("12:00");
-  const [seller, setSeller] = useState("");
-  const [client, setClient] = useState("");
+function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSales, onSaveClient, isToday = true, dateLabel = "", initial = null, zIndex = 100, sellerDirectory = {} }) {
+  const editing = !!initial;
+  const [pastTime, setPastTime] = useState(initial ? initial.time : "12:00");
+  const [saleDate, setSaleDate] = useState(initial ? initial.date : "");
+  const [seller, setSeller] = useState(initial ? initial.seller : "");
+  const [client, setClient] = useState(initial ? initial.client : "");
   const [clientOpen, setClientOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [clientPhone, setClientPhone] = useState("");
   const [clientBirthday, setClientBirthday] = useState("");
   const [clientInstagram, setClientInstagram] = useState(false);
   const [clientVip, setClientVip] = useState(false);
-  const [payment, setPayment] = useState(PAYMENT_METHODS[0]);
-  const [totalFinal, setTotalFinal] = useState("");
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState([{ id: 1, category: "", name: "", ref: "", price: "", qty: 1 }]);
+  const initSplit = !!(initial && initial.payments && initial.payments.length > 1);
+  const [payment, setPayment] = useState(initial && !initSplit ? normPay(initial.payment) : PAYMENT_METHODS[0]);
+  const [splitMode, setSplitMode] = useState(initSplit);
+  const [payRows, setPayRows] = useState(initSplit ? initial.payments.map((p, i) => ({ id: i + 1, method: normPay(p.method), amount: fmtMoney(p.amount) })) : []);
+  const [totalFinal, setTotalFinal] = useState(initial ? fmtMoney(initial.total) : "");
+  const [notes, setNotes] = useState(initial ? initial.notes || "" : "");
+  const [items, setItems] = useState(
+    initial
+      ? initial.items.map((it, i) => ({ id: i + 1, category: it.category || "", name: it.name, ref: it.ref || "", price: fmtMoney(it.price), qty: String(it.qty) }))
+      : [{ id: 1, category: getLastCategory(categories), name: "", ref: "", price: "", qty: "1" }]
+  );
   const [closing, setClosing] = useState(false);
+  const itemSeq = useRef(1000);
 
-  const addItem = () => setItems((prev) => [...prev, { id: Date.now(), category: "", name: "", ref: "", price: "", qty: 1 }]);
+  /* A última categoria escolhida fica salva e já vem marcada no próximo produto / próxima venda */
+  const addItem = () => setItems((prev) => [...prev, { id: ++itemSeq.current, category: getLastCategory(categories), name: "", ref: "", price: "", qty: "1" }]);
   const removeItem = (id) => setItems((prev) => (prev.length > 1 ? prev.filter((it) => it.id !== id) : prev));
   const updateItem = (id, patch) => setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
 
+  /* Valores sempre em centavos inteiros: nada de 9,99 x 3 = 29,969999 */
   const subtotal = useMemo(
-    () => items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0), 0),
+    () => items.reduce((sum, it) => sum + Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0), 0) / 100,
     [items]
   );
 
+  const skipAuto = useRef(editing);
   useEffect(() => {
-    setTotalFinal(subtotal > 0 ? subtotal.toFixed(2) : "");
+    if (skipAuto.current) { skipAuto.current = false; return; }
+    setTotalFinal(subtotal > 0 ? fmtMoney(subtotal) : "");
   }, [subtotal]);
 
-  const total = Number(totalFinal) || 0;
-  const canSubmit = seller && items.some((it) => it.name.trim() && Number(it.price) > 0) && total > 0;
+  const total = parseMoney(totalFinal);
+  const totalCents = Math.round(total * 100);
+  const rowCents = payRows.map((r) => Math.round(parseMoney(r.amount) * 100));
+  const diffCents = totalCents - rowCents.reduce((a, b) => a + b, 0);
+  const splitOk = splitMode && payRows.length >= 2 && payRows.every((r, i) => r.method && rowCents[i] > 0) && diffCents === 0;
+  const canSubmit = !!seller && items.some((it) => it.name.trim() && parseMoney(it.price) > 0) && total > 0 && (!splitMode || splitOk);
+
+  /* Produtos já digitados em vendas anteriores viram sugestões de preenchimento automático */
+  const catalog = useMemo(() => {
+    const map = {};
+    allSales.forEach((sv) => (sv.items || []).forEach((it) => {
+      const key = normName(it.name);
+      if (!key) return;
+      const e = map[key] || (map[key] = { name: titleCase(it.name), ref: "", category: "", price: 0, count: 0, last: -1 });
+      e.count += Number(it.qty) || 1;
+      if ((sv.createdAt || 0) >= e.last) {
+        e.last = sv.createdAt || 0;
+        if (it.ref) e.ref = it.ref;
+        if (it.category) e.category = it.category;
+        if (Number(it.price) > 0) e.price = Number(it.price);
+      }
+    }));
+    return Object.values(map).sort((a, b) => b.count - a.count || b.last - a.last);
+  }, [allSales]);
+  const [suggestFor, setSuggestFor] = useState(null);
+  const suggestionsFor = (it) => {
+    const q = normName(it.name);
+    const list = q ? catalog.filter((c) => normName(c.name).includes(q) && !(normName(c.name) === q && (c.ref || "") === (it.ref || ""))) : catalog;
+    const starts = list.filter((c) => normName(c.name).startsWith(q));
+    return [...starts, ...list.filter((c) => !starts.includes(c))].slice(0, 6);
+  };
+  const pickProduct = (id, c) => {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, name: c.name, ref: c.ref || it.ref, category: c.category || it.category, price: it.price ? it.price : c.price > 0 ? fmtMoney(c.price) : "" } : it)));
+    if (c.category) setLastCategory(c.category);
+    setSuggestFor(null);
+  };
+
+  const startSplit = () => {
+    const other = PAYMENT_METHODS.find((m) => m !== payment) || PAYMENT_METHODS[0];
+    setPayRows([{ id: 1, method: payment, amount: total > 0 ? fmtMoney(total) : "" }, { id: 2, method: other, amount: "" }]);
+    setSplitMode(true);
+  };
+  const stopSplit = (keep) => { if (keep) setPayment(keep); setSplitMode(false); setPayRows([]); };
+  const updateRow = (id, patch) => setPayRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const addRow = () => setPayRows((prev) => [...prev, { id: Date.now(), method: PAYMENT_METHODS.find((m) => !prev.some((r) => r.method === m)) || PAYMENT_METHODS[0], amount: diffCents > 0 ? fmtMoney(diffCents / 100) : "" }]);
+  const removeRow = (id) => {
+    if (payRows.length <= 2) { const left = payRows.find((r) => r.id !== id); stopSplit(left ? left.method : payment); }
+    else setPayRows((prev) => prev.filter((r) => r.id !== id));
+  };
+  const fillRest = (id) => { const i = payRows.findIndex((r) => r.id === id); updateRow(id, { amount: fmtMoney(Math.max(0, rowCents[i] + diffCents) / 100) }); };
 
   const handleClose = () => { setClosing(true); setTimeout(onClose, 180); };
 
@@ -1781,22 +1958,26 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!canSubmit) return;
+    const clientName = matchedClient ? matchedClient.name : titleCase(typedClient);
     if (typedClient) {
-      onSaveClient({ name: matchedClient ? matchedClient.name : typedClient, phone: clientPhone.trim(), birthday: clientBirthday, instagram: clientInstagram, vip: clientVip });
+      onSaveClient({ name: clientName, phone: clientPhone.trim(), birthday: clientBirthday, instagram: clientInstagram, vip: clientVip });
     }
     const now = new Date();
-    const time = isToday ? now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : (pastTime || "12:00");
+    const time = !editing && isToday ? now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : (pastTime || "12:00");
     const cleanItems = items
-      .filter((it) => it.name.trim() && Number(it.price) > 0)
-      .map((it) => ({ category: it.category, name: it.name.trim(), ref: it.ref.trim(), price: Number(it.price), qty: Number(it.qty) || 1 }));
+      .filter((it) => it.name.trim() && parseMoney(it.price) > 0)
+      .map((it) => ({ category: it.category, name: titleCase(it.name), ref: it.ref.trim(), price: parseMoney(it.price), qty: parseInt(it.qty, 10) || 1 }));
+    const payments = splitMode ? payRows.map((r, i) => ({ method: r.method, amount: rowCents[i] / 100 })) : [];
     onSubmit({
-      id: Date.now(),
+      id: editing ? initial.id : Date.now(),
       time,
+      date: editing ? (saleDate || initial.date) : undefined,
       seller,
-      client: matchedClient ? matchedClient.name : typedClient,
+      client: clientName,
       items: cleanItems,
-      payment,
-      total,
+      payment: splitMode ? payLabel(payments) : payment,
+      payments,
+      total: totalCents / 100,
       notes: notes.trim(),
       cancelled: false,
       partialCancels: [],
@@ -1806,27 +1987,41 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
 
   return (
     <div className={closing ? "overlay-out" : "overlay-in"}
-         style={{ position: "fixed", inset: 0, background: "rgba(5,8,18,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}
+         style={{ position: "fixed", inset: 0, background: "rgba(5,8,18,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex, padding: 20 }}
          onMouseDown={(e) => e.target === e.currentTarget && handleClose()}>
       <form onSubmit={handleSubmit} className={closing ? "modal-out" : "modal-in"}
             style={{ width: "100%", maxWidth: 580, maxHeight: "calc(100vh - 40px)", overflowY: "auto", background: MODAL.bg, borderRadius: 22, padding: "26px 26px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: MODAL.text }}>Nova venda</h2>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: MODAL.textFaint }}>Preencha os dados para registrar a venda</p>
+            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: MODAL.text }}>{editing ? "Editar venda" : "Nova venda"}</h2>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: MODAL.textFaint }}>{editing ? "Altere o que for preciso e salve" : "Preencha os dados para registrar a venda"}</p>
           </div>
           <button type="button" onClick={handleClose} className="icon-btn-plain"><X size={18} color={MODAL.textDim} /></button>
         </div>
 
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Vendedora{seller ? <span style={{ fontWeight: 600, marginLeft: 8, color: COLORS.accent }}>· {seller}</span> : null}</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, paddingTop: 4, paddingBottom: 2 }}>
+            {(editing && initial.seller && !sellers.includes(initial.seller) ? [...sellers, initial.seller] : sellers).map((n) => {
+              const info = sellerDirectory[n] || {};
+              const on = seller === n;
+              return (
+                <button
+                  key={n} type="button" onClick={() => setSeller(n)} className="seller-pick" data-name={n} title={n}
+                  aria-label={n} aria-pressed={on}
+                  style={{ opacity: seller && !on ? 0.5 : 1, transform: on ? "scale(1.08)" : undefined, boxShadow: on ? `0 0 0 3px ${COLORS.accent}` : "0 0 0 2px rgba(255,255,255,0.18)" }}
+                >
+                  <Avatar initials={info.initials || n.slice(0, 1)} color={info.color || MODAL.textFaint} photo={info.photo} size={46} onColor />
+                </button>
+              );
+            })}
+          </div>
+          {sellers.length === 0 && (
+            <p style={{ margin: "7px 0 0", fontSize: 12.5, color: MODAL.textDim }}>Cadastre uma vendedora em Configurações antes de registrar vendas.</p>
+          )}
+        </div>
+
         <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
-          <Field label="Vendedora" flex={1}>
-            <Select value={seller} onChange={setSeller} placeholder="Selecionar">
-              {sellers.map((s) => <option key={s} value={s}>{s}</option>)}
-            </Select>
-            {sellers.length === 0 && (
-              <p style={{ margin: "7px 0 0", fontSize: 12.5, color: MODAL.textDim }}>Cadastre uma vendedora em Configurações antes de registrar vendas.</p>
-            )}
-          </Field>
           <div style={{ flex: 1, position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
               <label style={{ ...labelStyle, marginBottom: 0 }}><LabelText text="Cliente (opcional)" /></label>
@@ -1920,19 +2115,42 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {items.map((it) => (
               <div key={it.id} style={{ background: MODAL.itemCardBg, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Select value={it.category} onChange={(v) => updateItem(it.id, { category: v })} placeholder="Categoria">
-                      {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </Select>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 2 }}>
+                    {categories.length === 0 && <span style={{ fontSize: 12.5, color: MODAL.textFaint, padding: "8px 2px" }}>Cadastre categorias em Configurações</span>}
+                    {categories.map((c) => {
+                      const on = it.category === c.name;
+                      return (
+                        <button
+                          key={c.id} type="button" className="cat-chip" aria-pressed={on}
+                          onClick={() => { updateItem(it.id, { category: on ? "" : c.name }); if (!on) setLastCategory(c.name); }}
+                          style={{ background: on ? COLORS.accent : "rgba(255,255,255,0.14)", color: on ? "#16324A" : "#FFFFFF", fontWeight: on ? 800 : 600 }}
+                        >
+                          {c.name}
+                        </button>
+                      );
+                    })}
                   </div>
                   <button type="button" onClick={() => removeItem(it.id)} className="icon-btn-plain" style={{ width: 40, height: 40, flexShrink: 0 }}>
                     <Trash2 size={14} color={MODAL.textFaint} />
                   </button>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 2, minWidth: 0 }}>
-                    <Input value={it.name} onChange={(v) => updateItem(it.id, { name: v })} placeholder="Nome do produto" />
+                  <div style={{ flex: 2, minWidth: 0, position: "relative" }}>
+                    <Input
+                      value={it.name} onChange={(v) => { updateItem(it.id, { name: v }); setSuggestFor(it.id); }} placeholder="Nome do produto"
+                      autoComplete="off" onFocus={() => setSuggestFor(it.id)} onBlur={() => setSuggestFor(null)}
+                    />
+                    {suggestFor === it.id && suggestionsFor(it).length > 0 && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 25, background: MODAL.field, borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", overflow: "hidden" }}>
+                        {suggestionsFor(it).map((c) => (
+                          <button key={c.name} type="button" className="suggest-item" onMouseDown={(e) => { e.preventDefault(); pickProduct(it.id, c); }}>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                            <span style={{ fontSize: 12, color: "#5F6B78", fontWeight: 600, flexShrink: 0 }}>{[c.ref, c.price > 0 ? brl(c.price) : ""].filter(Boolean).join(" · ")}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Input value={it.ref} onChange={(v) => updateItem(it.id, { ref: v })} placeholder="Referência (opcional)" />
@@ -1940,13 +2158,13 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <div style={{ width: 110, flexShrink: 0 }}>
-                    <Input type="number" min={0} step="0.01" value={it.price} onChange={(v) => updateItem(it.id, { price: v })} placeholder="Valor" />
+                    <Input inputMode="decimal" value={it.price} onChange={(v) => updateItem(it.id, { price: cleanMoneyText(v) })} placeholder="Valor" />
                   </div>
                   <div style={{ width: 64, flexShrink: 0 }}>
-                    <Input type="number" min={1} value={it.qty} onChange={(v) => updateItem(it.id, { qty: v })} />
+                    <Input inputMode="numeric" value={it.qty} onChange={(v) => updateItem(it.id, { qty: v.replace(/\D/g, "").slice(0, 4) })} />
                   </div>
                   <div style={{ flex: 1, fontSize: 14, color: MODAL.textDim, fontWeight: 700, textAlign: "right" }}>
-                    {Number(it.price) > 0 ? brl(Number(it.price) * (Number(it.qty) || 0)) : "—"}
+                    {parseMoney(it.price) > 0 ? brl((Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0)) / 100) : "—"}
                   </div>
                 </div>
               </div>
@@ -1957,18 +2175,68 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 14, marginBottom: 16, marginTop: 16, flexWrap: "wrap" }}>
-          <Field label="Forma de pagamento" flex={1}>
-            <Select value={payment} onChange={setPayment}>
-              {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </Select>
-          </Field>
+        <div style={{ display: "flex", gap: 14, marginBottom: splitMode ? 10 : 16, marginTop: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Forma de pagamento</label>
+              {!splitMode && (
+                <button type="button" onClick={startSplit} className="link-btn" style={{ padding: "2px 4px", color: MODAL.text, fontSize: 12.5 }}>Dividir pagamento</button>
+              )}
+            </div>
+            {!splitMode ? (
+              <Select value={payment} onChange={setPayment}>
+                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </Select>
+            ) : (
+              <div style={{ height: 40, display: "flex", alignItems: "center", fontSize: 13.5, color: MODAL.textDim, fontWeight: 600 }}>Dividido em {payRows.length} formas</div>
+            )}
+          </div>
           <Field label="Total final (com desconto já aplicado)" flex={1}>
-            <Input type="number" min={0} step="0.01" value={totalFinal} onChange={setTotalFinal} placeholder="0,00" />
+            <Input inputMode="decimal" value={totalFinal} onChange={(v) => setTotalFinal(cleanMoneyText(v))} placeholder="0,00" />
           </Field>
         </div>
 
-        {!isToday && (
+        {splitMode && (
+          <div style={{ background: MODAL.itemCardBg, borderRadius: 14, padding: 10, marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            {payRows.map((r) => (
+              <div key={r.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 130px", minWidth: 0 }}>
+                  <Select value={r.method} onChange={(v) => updateRow(r.id, { method: v })}>
+                    {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </Select>
+                </div>
+                <div style={{ width: 112, flexShrink: 0 }}>
+                  <Input inputMode="decimal" value={r.amount} onChange={(v) => updateRow(r.id, { amount: cleanMoneyText(v) })} placeholder="Valor" />
+                </div>
+                {diffCents !== 0 && (
+                  <button type="button" className="btn-undo" style={{ flexShrink: 0 }} onClick={() => fillRest(r.id)} title="Colocar aqui o que falta (ou sobra)">Restante</button>
+                )}
+                <button type="button" onClick={() => removeRow(r.id)} className="icon-btn-plain" style={{ width: 36, height: 36, flexShrink: 0 }} title="Remover forma">
+                  <Trash2 size={14} color={MODAL.textFaint} />
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button type="button" onClick={addRow} className="link-btn"><Plus size={13} /> Adicionar forma</button>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: diffCents === 0 && totalCents > 0 ? "#BDEBC8" : "#FFD9A8" }}>
+                {totalCents <= 0 ? "Informe o total da venda" : diffCents === 0 ? `Soma confere: ${brl(total)}` : diffCents > 0 ? `Falta ${brl(diffCents / 100)}` : `Passou ${brl(-diffCents / 100)}`}
+              </span>
+            </div>
+            <button type="button" onClick={() => stopSplit(payRows[0] && payRows[0].method)} className="link-btn" style={{ alignSelf: "flex-start", color: MODAL.textDim }}>Usar uma forma só</button>
+          </div>
+        )}
+
+        {editing && (
+          <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <Field label="Data da venda" flex={1}>
+              <Input type="date" value={saleDate} onChange={setSaleDate} />
+            </Field>
+            <Field label="Horário da venda" flex={1}>
+              <Input type="time" value={pastTime} onChange={setPastTime} />
+            </Field>
+          </div>
+        )}
+        {!editing && !isToday && (
           <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
             <Field label={`Horário da venda (${dateLabel})`} flex={1}>
               <Input type="time" value={pastTime} onChange={setPastTime} />
@@ -1988,7 +2256,7 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
 
         <div style={{ display: "flex", gap: 10 }}>
           <button type="button" onClick={handleClose} className="btn-cancel" style={{ flex: 1 }}>Cancelar</button>
-          <button type="submit" disabled={!canSubmit} className="btn-success" style={{ flex: 2 }}>Finalizar venda</button>
+          <button type="submit" disabled={!canSubmit} className="btn-success" style={{ flex: 2 }}>{editing ? "Salvar alterações" : "Finalizar venda"}</button>
         </div>
       </form>
     </div>
@@ -2002,67 +2270,84 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
    PDF EXPORT — products sold today (ref, quantity, value)
 --------------------------------------------------------- */
 function exportProductsPDF(sales) {
-  const map = {};
-  sales.forEach((s) => {
-    const shares = allocateItemCents(s);
-    s.items.forEach((it, i) => {
-      const key = `${it.name.trim()}|${(it.ref || "").trim()}`;
-      if (!map[key]) map[key] = { name: it.name.trim(), ref: (it.ref || "").trim() || "—", qty: 0, cents: 0 };
-      map[key].qty += Number(it.qty) || 0;
-      map[key].cents += shares[i] || 0;
-    });
-  });
-  const rows = Object.values(map).map((r) => ({ ...r, value: r.cents / 100 })).sort((a, b) => b.value - a.value);
-  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
-  const totalValue = rows.reduce((s, r) => s + r.value, 0);
+  const all = aggregateItemsByRef(sales);
+  /* Referência numérica: abaixo de 20000 vai no relatório 1; 20000 ou mais, no relatório 2.
+     Referência sem número (ex.: "B9") entra no relatório 1. */
+  const refNum = (r) => { const m = String(r).match(/\d+/); return m ? Number(m[0]) : -1; };
+  const byRef = (a, b) => (refNum(a.ref) - refNum(b.ref)) || String(a.ref).localeCompare(String(b.ref), "pt-BR", { numeric: true });
+  const reports = [
+    { title: "Relatório 1 — Referências abaixo de 20000", rows: all.filter((r) => refNum(r.ref) < 20000).sort(byRef) },
+    { title: "Relatório 2 — Referências a partir de 20000", rows: all.filter((r) => refNum(r.ref) >= 20000).sort(byRef) },
+  ];
   const todayStr = new Date().toLocaleDateString("pt-BR");
-
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const colX = { name: 14, ref: 96, qty: 140, value: 165 };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Caravela — Produtos vendidos hoje", 14, 18);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(90, 100, 110);
-  doc.text(`Data: ${todayStr}`, 14, 25);
+  reports.forEach((rep, idx) => {
+    if (idx > 0) doc.addPage();
+    const totalQty = rep.rows.reduce((a, r) => a + r.qty, 0);
+    const totalValue = rep.rows.reduce((a, r) => a + r.value, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(20, 40, 60);
+    doc.text("Caravela — Produtos vendidos hoje", 14, 18);
+    doc.setFontSize(12);
+    doc.text(rep.title, 14, 26);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(90, 100, 110);
+    doc.text(`Data: ${todayStr}`, 14, 33);
 
-  let y = 38;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
-  doc.setTextColor(20, 40, 60);
-  doc.text("Produto", colX.name, y);
-  doc.text("Referência", colX.ref, y);
-  doc.text("Qtd.", colX.qty, y);
-  doc.text("Valor", colX.value, y);
-  y += 3;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(14, y, 196, y);
-  y += 7;
+    let y = 45;
+    const header = () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(20, 40, 60);
+      doc.text("Produto", colX.name, y);
+      doc.text("Referência", colX.ref, y);
+      doc.text("Qtd.", colX.qty, y);
+      doc.text("Valor", colX.value, y);
+      y += 3;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, y, 196, y);
+      y += 7;
+    };
+    header();
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    if (!rep.rows.length) {
+      doc.setTextColor(120, 130, 140);
+      doc.text("Nenhum item vendido neste grupo de referências.", colX.name, y);
+      y += 7;
+    }
+    rep.rows.forEach((r) => {
+      if (y > 275) { doc.addPage(); y = 20; header(); doc.setFont("helvetica", "normal"); doc.setFontSize(10); }
+      doc.setTextColor(30, 40, 50);
+      doc.text(String(r.name).slice(0, 42), colX.name, y);
+      doc.text(String(r.ref).slice(0, 20), colX.ref, y);
+      doc.text(String(r.qty), colX.qty, y);
+      doc.text(brl(r.value), colX.value, y);
+      y += 7;
+    });
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  rows.forEach((r) => {
+    y += 3;
     if (y > 275) { doc.addPage(); y = 20; }
-    doc.setTextColor(30, 40, 50);
-    doc.text(String(r.name).slice(0, 42), colX.name, y);
-    doc.text(String(r.ref).slice(0, 20), colX.ref, y);
-    doc.text(String(r.qty), colX.qty, y);
-    doc.text(brl(r.value), colX.value, y);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, y, 196, y);
     y += 7;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(20, 40, 60);
+    doc.text("Total", colX.name, y);
+    doc.text(String(totalQty), colX.qty, y);
+    doc.text(brl(totalValue), colX.value, y);
+    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(120, 130, 140);
+    doc.text("Itens iguais somados pela referência. Produtos sem referência não são listados neste relatório.", 14, y);
   });
-
-  y += 3;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(14, y, 196, y);
-  y += 7;
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(20, 40, 60);
-  doc.text("Total", colX.name, y);
-  doc.text(String(totalQty), colX.qty, y);
-  doc.text(brl(totalValue), colX.value, y);
 
   doc.save(`vendas-caravela-${todayStr.replace(/\//g, "-")}.pdf`);
 }
@@ -2119,7 +2404,7 @@ function ProductCancelModal({ sale, onSubmit, onClose }) {
   );
 }
 
-function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, sellerDirectory }) {
+function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, onEditSale, sellerDirectory }) {
   const [closing, setClosing] = useState(false);
   const [productCancelOpen, setProductCancelOpen] = useState(false);
   const handleClose = () => { setClosing(true); setTimeout(onClose, 180); };
@@ -2186,7 +2471,13 @@ function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct,
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: MC_DIM, marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Forma de pagamento</span>
-            <span style={{ color: COLORS.text, fontWeight: 600 }}>{sale.payment}</span>
+            {sale.payments && sale.payments.length > 1 ? (
+              <span style={{ color: COLORS.text, fontWeight: 600, textAlign: "right" }}>
+                {sale.payments.map((pm, i) => <div key={i}>{pm.method} · {brl(pm.amount)}</div>)}
+              </span>
+            ) : (
+              <span style={{ color: COLORS.text, fontWeight: 600 }}>{sale.payment}</span>
+            )}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Soma dos itens</span>
@@ -2205,8 +2496,19 @@ function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct,
           <span style={{ fontSize: 21, fontWeight: 800, color: COLORS.accent }}><Masked value={brl(netTotal)} hidden={false} /></span>
         </div>
 
+        <div style={{ display: "flex", marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => onEditSale(sale)}
+            className="btn-secondary"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flex: 1, padding: "12px 14px", borderRadius: 12, fontSize: 12.5, fontWeight: 700 }}
+          >
+            EDITAR VENDA
+          </button>
+        </div>
+
         {sale.cancelled && (
-          <div style={{ display: "flex", marginTop: 16 }}>
+          <div style={{ display: "flex", marginTop: 10 }}>
             <button
               type="button"
               onClick={() => { onRestoreSale(sale.id); onClose(); }}
@@ -2264,7 +2566,7 @@ function directionLabel(field, desc) {
   return desc ? "Z–A" : "A–Z";
 }
 
-function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, sellerDirectory }) {
+function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, onEditSale, sellerDirectory }) {
   const [closing, setClosing] = useState(false);
   const [sortField, setSortField] = useState("time");
   const [sortDesc, setSortDesc] = useState(true);
@@ -2333,7 +2635,7 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
           </div>
 
           <p style={{ margin: "10px 0 0", fontSize: 12.5, color: MC_FAINT }}>
-            Clique numa venda para ver os detalhes · clique com o botão direito para cancelar
+            Clique numa venda para ver os detalhes · clique com o botão direito para editar ou cancelar
           </p>
 
           <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
@@ -2463,13 +2765,21 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
           onContextMenu={(e) => e.preventDefault()}
           style={{
             position: "fixed",
-            top: Math.min(contextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 800) - 110),
+            top: Math.min(contextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 800) - 160),
             left: Math.min(contextMenu.x, (typeof window !== "undefined" ? window.innerWidth : 400) - 200),
             zIndex: 200,
             background: COLORS.cardSoft, borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
             overflow: "hidden", minWidth: 190,
           }}
         >
+          <button
+            type="button"
+            onClick={() => { onEditSale(contextMenu.sale); setContextMenu(null); }}
+            className="menu-item-edit"
+            style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "11px 15px", textAlign: "left" }}
+          >
+            <Pencil size={15} /> Editar venda
+          </button>
           {contextMenu.sale.cancelled ? (
             <button
               type="button"
@@ -2503,7 +2813,7 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
       )}
 
       {detailSale && (
-        <SaleDetailModal sale={sales.find((x) => x.id === detailSale.id) || detailSale} hidden={hidden} onClose={() => setDetailSale(null)} onCancelSale={onCancelSale} onCancelProduct={onCancelProduct} onRestoreSale={onRestoreSale} onRestoreProduct={onRestoreProduct} sellerDirectory={sellerDirectory} />
+        <SaleDetailModal sale={sales.find((x) => x.id === detailSale.id) || detailSale} hidden={hidden} onClose={() => setDetailSale(null)} onCancelSale={onCancelSale} onCancelProduct={onCancelProduct} onRestoreSale={onRestoreSale} onRestoreProduct={onRestoreProduct} onEditSale={(sv) => { setDetailSale(null); onEditSale(sv); }} sellerDirectory={sellerDirectory} />
       )}
 
       {productCancelSale && (
@@ -2631,51 +2941,14 @@ function exportMonthPDF({ monthTitle, days, dailyGoal, monthlyGoal, allSales }) 
     { label: "Qtd.", x: 156, align: "right" }, { label: "Valor", x: RIGHT, align: "right" },
   ];
   tableHeader(itemCols);
-  closing.items.forEach((it) => {
-    tableRow(itemCols, [cut(it.name, 34), cut(it.ref || "—", 14), cut(it.category || "—", 16), it.qty, brl(it.value)]);
+  const refItems = aggregateItemsByRef(active);
+  refItems.forEach((it) => {
+    tableRow(itemCols, [cut(it.name, 34), cut(it.ref, 14), cut(it.category || "—", 16), it.qty, brl(it.value)]);
   });
-  tableRow(itemCols, ["Total", "", "", closing.units, brl(closing.itemsValue)], true);
+  tableRow(itemCols, ["Total", "", "", refItems.reduce((a, r) => a + r.qty, 0), brl(refItems.reduce((a, r) => a + r.cents, 0) / 100)], true);
   doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(120, 130, 140);
   ensure(6);
-  doc.text("Valores dos itens no preço final: já consideram descontos e cancelamentos, e somam exatamente o total vendido.", M, y); y += 4;
-
-  /* 6. Vendas detalhadas */
-  heading("Vendas detalhadas");
-  const byDay = {};
-  active.forEach((s) => { (byDay[s.day] = byDay[s.day] || []).push(s); });
-  Object.keys(byDay).map(Number).sort((a, b) => a - b).forEach((day) => {
-    const list = byDay[day].slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-    const dayTotal = list.reduce((s, x) => s + effectiveSaleTotal(x), 0);
-    ensure(16);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(20, 40, 60);
-    doc.text(`Dia ${day}  ·  ${list.length} ${list.length === 1 ? "venda" : "vendas"}`, M, y);
-    doc.text(brl(dayTotal), RIGHT, y, { align: "right" });
-    y += 6;
-    list.forEach((s) => {
-      ensure(8 + s.items.length * 5);
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(30, 40, 50);
-      doc.text(`${s.time}  ${cut(s.seller, 22)}  ·  ${s.payment}${s.client ? `  ·  ${cut(s.client, 16)}` : ""}`, M + 3, y);
-      doc.text(brl(effectiveSaleTotal(s)), RIGHT, y, { align: "right" });
-      y += 5;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90, 100, 110);
-      const shares = allocateItemCents(s);
-      s.items.forEach((it, i) => {
-        const label = `${it.qty} × ${cut(it.name, 30)}${it.ref ? ` (${it.ref})` : ""}${it.category ? ` · ${it.category}` : ""}`;
-        doc.text(label, M + 8, y);
-        doc.text(brl((shares[i] || 0) / 100), RIGHT, y, { align: "right" });
-        y += 4.6;
-      });
-      (s.partialCancels || []).forEach((p) => {
-        ensure(5);
-        doc.setTextColor(170, 60, 50);
-        doc.text(`Cancelamento de produto${p.name ? `: ${cut(p.name, 26)}` : ""}${p.ref ? ` (${p.ref})` : ""} · ${brl(p.value)} já abatido dos itens acima`, M + 8, y);
-        y += 4.6;
-        doc.setTextColor(90, 100, 110);
-      });
-      y += 2;
-    });
-    y += 2;
-  });
+  doc.text("Itens iguais somados pela referência, no preço final (com descontos e cancelamentos). Produtos sem referência não são listados.", M, y); y += 4;
 
   /* Rodapé com numeração */
   const pages = doc.getNumberOfPages();
@@ -2787,7 +3060,7 @@ function AppHeader({ leftNav, actions, birthdayCount, onOpenBirthdays, onOpenSet
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {actions}
         <button className="icon-btn-plain hdr-icon" style={{ position: "relative" }} onClick={onOpenBirthdays} title="Aniversariantes" aria-label="Notificações de aniversário">
-          <Bell size={20} color={COLORS.text} />
+          <Gift size={20} color={COLORS.text} />
           {birthdayCount > 0 && (
             <span style={{ position: "absolute", top: 1, right: 0, minWidth: 17, height: 17, padding: "0 4px", boxSizing: "border-box", borderRadius: 9, background: COLORS.accent, color: "#16324A", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>{birthdayCount}</span>
           )}
@@ -3708,10 +3981,17 @@ function BirthdayModal({ onClose, birthdays, message }) {
 }
 
 function SalesDashboard({ initial, email, onSignOut }) {
+  /* Rolar o mouse sobre um campo numérico selecionado muda o valor (30 virava 29,97): solta o campo ao rolar */
+  useEffect(() => {
+    const h = () => { const a = document.activeElement; if (a && a.tagName === "INPUT" && a.type === "number") a.blur(); };
+    window.addEventListener("wheel", h, { passive: true });
+    return () => window.removeEventListener("wheel", h);
+  }, []);
   const [hidden, setHidden] = useState(false);
   const [page, setPage] = useState("overview");
   const [modalOpen, setModalOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [editSale, setEditSale] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [birthdayOpen, setBirthdayOpen] = useState(false);
   const [birthdayMessage, setBirthdayMessage] = useState(initial.birthdayMessage);
@@ -3777,6 +4057,17 @@ function SalesDashboard({ initial, email, onSignOut }) {
     setAllSales((prev) => prev.map((s) => (s.id === id ? { ...s, cancelled: true } : s)));
     persist(db.updateSale(id, { cancelled: true }));
   };
+  const updateSaleFull = (id, data) => {
+    const old = allSales.find((x) => x.id === id);
+    if (!old) return;
+    const date = data.date || old.date;
+    const merged = { ...old, ...data, id, date, day: Number(date.slice(8, 10)), cancelled: old.cancelled, partialCancels: old.partialCancels, createdAt: old.createdAt };
+    setAllSales((prev) => prev.map((x) => (x.id === id ? merged : x)));
+    const patch = { date: merged.date, time: merged.time, seller: merged.seller, client: merged.client, payment: merged.payment, total: merged.total, notes: merged.notes, items: merged.items };
+    const hadSplit = old.payments && old.payments.length > 1, hasSplit = merged.payments && merged.payments.length > 1;
+    if (hadSplit || hasSplit) patch.payments = hasSplit ? merged.payments : [];
+    persist(db.updateSale(id, patch));
+  };
   const restoreSale = (id) => {
     setAllSales((prev) => prev.map((s) => (s.id === id ? { ...s, cancelled: false } : s)));
     persist(db.updateSale(id, { cancelled: false }));
@@ -3795,7 +4086,8 @@ function SalesDashboard({ initial, email, onSignOut }) {
     setAllSales((prev) => prev.map((x) => (x.id === id ? { ...x, partialCancels: list } : x)));
     persist(db.updateSale(id, { partialCancels: list }));
   };
-  const saveClient = (data) => {
+  const saveClient = (raw) => {
+    const data = { ...raw, name: titleCase(raw.name) };
     const key = normName(data.name);
     const existing = clients.find((c) => normName(c.name) === key);
     const merged = existing ? { ...existing, ...data, name: existing.name } : { id: newId(), ...data };
@@ -3952,23 +4244,22 @@ function SalesDashboard({ initial, email, onSignOut }) {
     const totals = {};
     activeSales.forEach((s) => {
       s.items.forEach((it) => {
-        const key = it.name.trim();
-        if (!key) return;
+        const key = (it.category || "").trim() || "Sem categoria";
         totals[key] = (totals[key] || 0) + Number(it.qty || 0);
       });
     });
     let arr = Object.entries(totals).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     if (arr.length > 5) {
       const top = arr.slice(0, 4);
-      const restSum = arr.slice(4).reduce((s, p) => s + p.value, 0);
-      arr = [...top, { name: "Outros", value: restSum }];
+      const restSum = arr.slice(4).reduce((sum, p) => sum + p.value, 0);
+      arr = [...top, { name: "Outras", value: restSum }];
     }
     return arr;
   }, [activeSales]);
 
   const paymentTotals = useMemo(() => {
     const totals = {};
-    activeSales.forEach((s) => { totals[s.payment] = (totals[s.payment] || 0) + effectiveSaleTotal(s); });
+    activeSales.forEach((s) => { salePaymentShares(s).forEach((sh) => { totals[sh.method] = (totals[sh.method] || 0) + sh.cents / 100; }); });
     return Object.entries(totals).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [activeSales]);
 
@@ -4092,13 +4383,13 @@ function SalesDashboard({ initial, email, onSignOut }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }} className="grid-triple">
         <PieCard
-          title="Produtos mais vendidos"
+          title="Categorias mais vendidas"
           subtitle={isToday ? "Participação no dia de hoje" : "Participação no dia"}
           data={productTotals}
           valueFormatter={(v) => `${v} un.`}
           centerMain={(t) => String(t)}
           centerSub="itens"
-          emptyText={isToday ? "Nenhum item vendido ainda hoje." : "Nenhum item vendido neste dia."}
+          emptyText={isToday ? "Nenhuma categoria vendida ainda hoje." : "Nenhuma categoria vendida neste dia."}
           animationDelay="160ms"
         />
         <PieCard
@@ -4115,8 +4406,9 @@ function SalesDashboard({ initial, email, onSignOut }) {
         <SellersRanking hidden={hidden} sellers={sellerTotals} />
       </div>
 
-      {modalOpen && <NovaVendaModal isToday={isToday} dateLabel={parseISO(selectedDate).toLocaleDateString("pt-BR")} onClose={() => setModalOpen(false)} onSubmit={addSale} sellers={Object.keys(sellerDirectory).filter((n) => sellerDirectory[n].active !== false)} categories={categories} clients={clients} allSales={allSales} onSaveClient={saveClient} />}
-      {listOpen && <SalesListModal onClose={() => setListOpen(false)} sales={sales} hidden={hidden} onCancelSale={cancelSale} onCancelProduct={cancelProduct} onRestoreSale={restoreSale} onRestoreProduct={restoreProduct} sellerDirectory={sellerDirectory} />}
+      {modalOpen && <NovaVendaModal isToday={isToday} dateLabel={parseISO(selectedDate).toLocaleDateString("pt-BR")} onClose={() => setModalOpen(false)} onSubmit={addSale} sellers={Object.keys(sellerDirectory).filter((n) => sellerDirectory[n].active !== false)} categories={categories} clients={clients} allSales={allSales} onSaveClient={saveClient} sellerDirectory={sellerDirectory} />}
+      {editSale && <NovaVendaModal key={editSale.id} initial={editSale} zIndex={260} onClose={() => setEditSale(null)} onSubmit={(d) => updateSaleFull(editSale.id, d)} sellers={Object.keys(sellerDirectory).filter((n) => sellerDirectory[n].active !== false)} sellerDirectory={sellerDirectory} categories={categories} clients={clients} allSales={allSales} onSaveClient={saveClient} />}
+      {listOpen && <SalesListModal onClose={() => setListOpen(false)} sales={sales} hidden={hidden} onCancelSale={cancelSale} onCancelProduct={cancelProduct} onRestoreSale={restoreSale} onRestoreProduct={restoreProduct} onEditSale={setEditSale} sellerDirectory={sellerDirectory} />}
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {sharedModals}
 

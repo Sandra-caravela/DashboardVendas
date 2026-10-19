@@ -830,6 +830,23 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   }
   .cat-chip:hover { transform: translateY(-2px); }
 
+  .qty-stepper:focus-within { box-shadow: 0 0 0 2px rgba(28,63,88,0.25) !important; }
+  .qty-arrow { flex: 1; display: flex; align-items: center; justify-content: center; background: none; border: none; padding: 0; cursor: pointer; transition: background 0.2s ease; }
+  .qty-arrow:hover { background: #E3EBF2; }
+  .qty-arrow:active { background: #D3DFEA; }
+  .quiet-link { font-size: 12px; font-weight: 600; color: #C9D6E0; padding: 2px 4px; }
+  .sv-row { display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); column-gap: 18px; align-items: stretch; }
+  .sv-divider { background: rgba(255,255,255,0.24); border-radius: 1px; }
+  .pay-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .item-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px 100px 100px; gap: 8px; }
+  @media (max-width: 560px) {
+    .sv-row { grid-template-columns: minmax(0, 1fr); row-gap: 14px; }
+    .sv-divider { display: none; }
+    .pay-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .item-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+    .item-row > :first-child { grid-column: 1 / -1; }
+  }
+
   .field-focus:focus { box-shadow: 0 0 0 2px rgba(28,63,88,0.25); }
 
   .nav-btn {
@@ -915,6 +932,7 @@ const Store = (p) => <Icon {...p}><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v10
 const TrendingUp = (p) => <Icon {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></Icon>;
 const Wallet = (p) => <Icon {...p}><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/><path d="M21 12h-4a2 2 0 0 0 0 4h4"/></Icon>;
 const ChevronDown = (p) => <Icon {...p}><polyline points="6 9 12 15 18 9"/></Icon>;
+const ChevronUp = (p) => <Icon {...p}><polyline points="18 15 12 9 6 15"/></Icon>;
 const ListIcon = (p) => <Icon {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></Icon>;
 const SortIcon = (p) => <Icon {...p}><path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/><path d="M3 17l3 3 3-3"/><path d="M6 18V4"/></Icon>;
 const FileDown = (p) => <Icon {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9 14 12 17 15 14"/></Icon>;
@@ -1837,6 +1855,30 @@ function ToggleChip({ label, on, onClick }) {
   );
 }
 
+/* Quantidade com setinhas: sobe/desce com um clique (também dá para digitar) */
+function QtyStepper({ value, onChange }) {
+  const n = parseInt(value, 10) || 0;
+  const set = (v) => onChange(String(Math.max(1, Math.min(9999, v))));
+  return (
+    <div className="qty-stepper" style={{ ...inputStyle, display: "flex", alignItems: "stretch", padding: 0, overflow: "hidden" }}>
+      <input
+        inputMode="numeric" value={value} aria-label="Quantidade" title="Quantidade"
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+        onBlur={() => { if (!(parseInt(value, 10) > 0)) onChange("1"); }}
+        style={{ flex: 1, minWidth: 0, width: "100%", border: "none", outline: "none", background: "transparent", textAlign: "center", fontSize: 14.5, fontWeight: 600, fontFamily: "Montserrat, sans-serif", color: MODAL.fieldText, padding: "0 0 0 6px" }}
+      />
+      <div style={{ display: "flex", flexDirection: "column", width: 28, borderLeft: "1px solid #D5DEE6", flexShrink: 0 }}>
+        <button type="button" className="qty-arrow" aria-label="Aumentar quantidade" onClick={() => set(n + 1)} style={{ borderBottom: "1px solid #D5DEE6" }}>
+          <ChevronUp size={13} color={MODAL.fieldIcon} strokeWidth={2.6} />
+        </button>
+        <button type="button" className="qty-arrow" aria-label="Diminuir quantidade" onClick={() => set(n - 1)}>
+          <ChevronDown size={13} color={MODAL.fieldIcon} strokeWidth={2.6} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSales, onSaveClient, isToday = true, dateLabel = "", initial = null, zIndex = 100, sellerDirectory = {} }) {
   const editing = !!initial;
   const [pastTime, setPastTime] = useState(initial ? initial.time : "12:00");
@@ -1855,6 +1897,7 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
   const [payRows, setPayRows] = useState(initSplit ? initial.payments.map((p, i) => ({ id: i + 1, method: normPay(p.method), amount: fmtMoney(p.amount) })) : []);
   const [totalFinal, setTotalFinal] = useState(initial ? fmtMoney(initial.total) : "");
   const [notes, setNotes] = useState(initial ? initial.notes || "" : "");
+  const [notesOpen, setNotesOpen] = useState(!!(initial && initial.notes));
   const [items, setItems] = useState(
     initial
       ? initial.items.map((it, i) => ({ id: i + 1, category: it.category || "", name: it.name, ref: it.ref || "", price: fmtMoney(it.price), qty: String(it.qty) }))
@@ -1990,44 +2033,46 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
          style={{ position: "fixed", inset: 0, background: "rgba(5,8,18,0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex, padding: 20 }}
          onMouseDown={(e) => e.target === e.currentTarget && handleClose()}>
       <form onSubmit={handleSubmit} className={closing ? "modal-out" : "modal-in"}
-            style={{ width: "100%", maxWidth: 580, maxHeight: "calc(100vh - 40px)", overflowY: "auto", background: MODAL.bg, borderRadius: 22, padding: "26px 26px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+            style={{ width: "100%", maxWidth: 667, maxHeight: "calc(100vh - 40px)", overflowY: "auto", background: MODAL.bg, borderRadius: 22, padding: "26px 26px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: MODAL.text }}>{editing ? "Editar venda" : "Nova venda"}</h2>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: MODAL.textFaint }}>{editing ? "Altere o que for preciso e salve" : "Preencha os dados para registrar a venda"}</p>
+            {editing && <p style={{ margin: "4px 0 0", fontSize: 14, color: MODAL.textFaint }}>Altere o que for preciso e salve</p>}
           </div>
           <button type="button" onClick={handleClose} className="icon-btn-plain"><X size={18} color={MODAL.textDim} /></button>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Vendedora{seller ? <span style={{ fontWeight: 600, marginLeft: 8, color: COLORS.accent }}>· {seller}</span> : null}</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, paddingTop: 4, paddingBottom: 2 }}>
-            {(editing && initial.seller && !sellers.includes(initial.seller) ? [...sellers, initial.seller] : sellers).map((n) => {
-              const info = sellerDirectory[n] || {};
-              const on = seller === n;
-              return (
-                <button
-                  key={n} type="button" onClick={() => setSeller(n)} className="seller-pick" data-name={n} title={n}
-                  aria-label={n} aria-pressed={on}
-                  style={{ opacity: seller && !on ? 0.5 : 1, transform: on ? "scale(1.08)" : undefined, boxShadow: on ? `0 0 0 3px ${COLORS.accent}` : "0 0 0 2px rgba(255,255,255,0.18)" }}
-                >
-                  <Avatar initials={info.initials || n.slice(0, 1)} color={info.color || MODAL.textFaint} photo={info.photo} size={46} onColor />
-                </button>
-              );
-            })}
+        <div className="sv-row" style={{ marginBottom: 16 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", minHeight: 24, marginBottom: 7 }}>
+              <label style={{ ...labelStyle, marginBottom: 0, whiteSpace: "nowrap" }}>Vendedora{seller ? <span style={{ fontWeight: 600, marginLeft: 8, color: COLORS.accent }}>· {seller}</span> : null}</label>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "3px 3px 3px" }}>
+              {(editing && initial.seller && !sellers.includes(initial.seller) ? [...sellers, initial.seller] : sellers).map((n) => {
+                const info = sellerDirectory[n] || {};
+                const on = seller === n;
+                return (
+                  <button
+                    key={n} type="button" onClick={() => setSeller(n)} className="seller-pick" data-name={n} title={n}
+                    aria-label={n} aria-pressed={on}
+                    style={{ opacity: seller && !on ? 0.5 : 1, transform: on ? "scale(1.08)" : undefined, boxShadow: on ? `0 0 0 3px ${COLORS.accent}` : "0 0 0 2px rgba(255,255,255,0.18)" }}
+                  >
+                    <Avatar initials={info.initials || n.slice(0, 1)} color={info.color || MODAL.textFaint} photo={info.photo} size={36} onColor />
+                  </button>
+                );
+              })}
+            </div>
+            {sellers.length === 0 && (
+              <p style={{ margin: "7px 0 0", fontSize: 12.5, color: MODAL.textDim }}>Cadastre uma vendedora em Configurações antes de registrar vendas.</p>
+            )}
           </div>
-          {sellers.length === 0 && (
-            <p style={{ margin: "7px 0 0", fontSize: 12.5, color: MODAL.textDim }}>Cadastre uma vendedora em Configurações antes de registrar vendas.</p>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}><LabelText text="Cliente (opcional)" /></label>
+          <div className="sv-divider" aria-hidden="true" />
+          <div style={{ minWidth: 0, position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 24, marginBottom: 7, gap: 6 }}>
+              <label style={{ ...labelStyle, marginBottom: 0, whiteSpace: "nowrap" }}><LabelText text="Cliente (opcional)" /></label>
               <button
-                type="button" onClick={() => setClientOpen((v) => !v)} aria-expanded={clientOpen} className="link-btn"
-                style={{ padding: "2px 4px", color: MODAL.text, fontSize: 12.5 }}
+                type="button" onClick={() => setClientOpen((v) => !v)} aria-expanded={clientOpen} className="link-btn quiet-link"
+                style={{ marginRight: -4, whiteSpace: "nowrap" }}
               >
                 Dados da cliente
                 <ChevronDown size={13} style={{ transition: "transform 0.35s ease", transform: clientOpen ? "rotate(180deg)" : "none" }} />
@@ -2131,18 +2176,23 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                       );
                     })}
                   </div>
+                  {(parseInt(it.qty, 10) || 0) > 1 && parseMoney(it.price) > 0 && (
+                    <span style={{ alignSelf: "center", fontSize: 13, fontWeight: 700, color: MODAL.textDim, whiteSpace: "nowrap" }}>
+                      {brl((Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0)) / 100)}
+                    </span>
+                  )}
                   <button type="button" onClick={() => removeItem(it.id)} className="icon-btn-plain" style={{ width: 40, height: 40, flexShrink: 0 }}>
                     <Trash2 size={14} color={MODAL.textFaint} />
                   </button>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 2, minWidth: 0, position: "relative" }}>
+                <div className="item-row">
+                  <div style={{ minWidth: 0, position: "relative" }}>
                     <Input
                       value={it.name} onChange={(v) => { updateItem(it.id, { name: v }); setSuggestFor(it.id); }} placeholder="Nome do produto"
                       autoComplete="off" onFocus={() => setSuggestFor(it.id)} onBlur={() => setSuggestFor(null)}
                     />
                     {suggestFor === it.id && suggestionsFor(it).length > 0 && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 25, background: MODAL.field, borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", overflow: "hidden" }}>
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 25, background: MODAL.field, borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", overflow: "hidden", minWidth: 220 }}>
                         {suggestionsFor(it).map((c) => (
                           <button key={c.name} type="button" className="suggest-item" onMouseDown={(e) => { e.preventDefault(); pickProduct(it.id, c); }}>
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
@@ -2152,19 +2202,14 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                       </div>
                     )}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Input value={it.ref} onChange={(v) => updateItem(it.id, { ref: v })} placeholder="Referência (opcional)" />
+                  <div style={{ minWidth: 0 }}>
+                    <Input value={it.ref} onChange={(v) => updateItem(it.id, { ref: v })} placeholder="Referência" />
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <div style={{ width: 110, flexShrink: 0 }}>
+                  <div style={{ minWidth: 0 }}>
                     <Input inputMode="decimal" value={it.price} onChange={(v) => updateItem(it.id, { price: cleanMoneyText(v) })} placeholder="Valor" />
                   </div>
-                  <div style={{ width: 64, flexShrink: 0 }}>
-                    <Input inputMode="numeric" value={it.qty} onChange={(v) => updateItem(it.id, { qty: v.replace(/\D/g, "").slice(0, 4) })} />
-                  </div>
-                  <div style={{ flex: 1, fontSize: 14, color: MODAL.textDim, fontWeight: 700, textAlign: "right" }}>
-                    {parseMoney(it.price) > 0 ? brl((Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0)) / 100) : "—"}
+                  <div style={{ minWidth: 0 }}>
+                    <QtyStepper value={it.qty} onChange={(v) => updateItem(it.id, { qty: v })} />
                   </div>
                 </div>
               </div>
@@ -2175,25 +2220,32 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 14, marginBottom: splitMode ? 10 : 16, marginTop: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>Forma de pagamento</label>
-              {!splitMode && (
-                <button type="button" onClick={startSplit} className="link-btn" style={{ padding: "2px 4px", color: MODAL.text, fontSize: 12.5 }}>Dividir pagamento</button>
-              )}
-            </div>
+        <div className="pay-row" style={{ marginBottom: splitMode ? 10 : 16, marginTop: 16 }}>
+          <div style={{ minWidth: 0 }}>
+            <label style={{ ...labelStyle, whiteSpace: "nowrap" }}>Forma de pagamento</label>
             {!splitMode ? (
-              <Select value={payment} onChange={setPayment}>
-                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </Select>
+              <>
+                <Select value={payment} onChange={setPayment}>
+                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </Select>
+                <button type="button" onClick={startSplit} className="link-btn quiet-link" style={{ marginTop: 6, marginLeft: -4 }}>
+                  Dividir pagamento <ChevronDown size={13} />
+                </button>
+              </>
             ) : (
               <div style={{ height: 40, display: "flex", alignItems: "center", fontSize: 13.5, color: MODAL.textDim, fontWeight: 600 }}>Dividido em {payRows.length} formas</div>
             )}
           </div>
-          <Field label="Total final (com desconto já aplicado)" flex={1}>
+          <div style={{ minWidth: 0 }}>
+            <label style={{ ...labelStyle, whiteSpace: "nowrap" }}><LabelText text="Total final (com desconto já aplicado)" /></label>
             <Input inputMode="decimal" value={totalFinal} onChange={(v) => setTotalFinal(cleanMoneyText(v))} placeholder="0,00" />
-          </Field>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6, marginRight: -4 }}>
+              <button type="button" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen} className="link-btn quiet-link">
+                {notes.trim() && !notesOpen ? "Ver observação" : "Adicionar observação"}
+                <ChevronDown size={13} style={{ transition: "transform 0.35s ease", transform: notesOpen ? "rotate(180deg)" : "none" }} />
+              </button>
+            </div>
+          </div>
         </div>
 
         {splitMode && (
@@ -2244,10 +2296,12 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
           </div>
         )}
 
-        <Field label="Observações (opcional)">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Detalhes adicionais da venda" rows={2}
-                    style={{ ...inputStyle, height: "auto", resize: "none", fontFamily: "Montserrat, sans-serif" }} />
-        </Field>
+        {notesOpen && (
+          <Field label="Observação">
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Detalhes adicionais da venda" rows={2} autoFocus={!editing}
+                      style={{ ...inputStyle, height: "auto", resize: "none", fontFamily: "Montserrat, sans-serif" }} />
+          </Field>
+        )}
 
         <div style={{ marginTop: 20, marginBottom: 20, background: MODAL.itemCardBg, borderRadius: 14, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 14.5, color: MODAL.textDim, fontWeight: 600 }}>Total da venda</span>

@@ -847,6 +847,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
     .item-row > :first-child { grid-column: 1 / -1; }
   }
 
+  .item-summary { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 8px 8px 8px 12px; cursor: pointer; transition: filter 0.25s ease, transform 0.25s ease; }
+  .item-summary:hover { filter: brightness(1.14); }
+  .item-summary:focus-visible { outline: 2px solid #E2D1BD; outline-offset: 2px; }
   .field-focus:focus { box-shadow: 0 0 0 2px rgba(28,63,88,0.25); }
 
   .nav-btn {
@@ -1512,7 +1515,7 @@ function ProgressGaugeCard({ value, goalPct, sub, delay }) {
 /* ---------------------------------------------------------
    GENERIC LINE+AREA CHART (used for "Vendas do mês" and "Vendas de hoje")
 --------------------------------------------------------- */
-function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill, xKey, xMin, xMax, xTicks }) {
+function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill, xKey, xMin, xMax, xTicks, xTickFmt, valueLabel = "Vendido", goalLabel = "Meta", endDot }) {
   const numericX = xKey != null;
   /* Measure the drawing area so the SVG is drawn 1:1 (no stretched text) and fits any card */
   const wrapRef = useRef(null);
@@ -1596,8 +1599,8 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
           <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
         </div>
         <div style={{ display: "flex", gap: 16 }}>
-          <Legend dot={COLORS.blue} label="Vendido" />
-          <Legend dot={COLORS.accent} label="Meta" dashed />
+          <Legend dot={COLORS.blue} label={valueLabel} />
+          <Legend dot={COLORS.accent} label={goalLabel} dashed />
         </div>
       </div>
 
@@ -1631,7 +1634,7 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
             <g key={`xt${t}`}>
               <line x1={xAt(t)} x2={xAt(t)} y1={padT} y2={padT + plotH} stroke={COLORS.line} strokeWidth="1" opacity="0.55" />
               <text x={xAt(t)} y={H - 8} textAnchor="middle" fontSize={plotW / (xTicks.length || 1) < 30 ? 10.5 : 12} fill={COLORS.textFaint} fontFamily="Montserrat, sans-serif">
-                {`${t}h`}
+                {xTickFmt ? xTickFmt(t) : `${t}h`}
               </text>
             </g>
           ))}
@@ -1649,7 +1652,7 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
           <path d={goalPath} stroke={COLORS.accent} strokeWidth="2" strokeDasharray="6 5" fill="none" />
           <path d={linePath} stroke={COLORS.blue} strokeWidth="2.5" fill="none" strokeLinejoin="round" strokeLinecap="round" />
 
-          {numericX && N > 0 && (data[N - 1].now || N === 1) && data[N - 1][valueKey] != null && (
+          {numericX && N > 0 && (data[N - 1].now || N === 1 || endDot) && data[N - 1][valueKey] != null && (
             <circle cx={xScale(N - 1)} cy={yScale(data[N - 1][valueKey])} r="4" fill={COLORS.blue} stroke={COLORS.bg} strokeWidth="2" />
           )}
           {hoverData && hoverData[valueKey] != null && (
@@ -1673,9 +1676,9 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
           >
             <div style={{ color: "#EAF0F4", marginBottom: 6, fontWeight: 600 }}>{tooltipLabel(hoverData)}</div>
             {hoverData[valueKey] != null && (
-              <div style={{ color: "#B5DAF2", fontWeight: 700 }}>Vendido: <Masked value={brl(hoverData[valueKey])} hidden={hidden} /></div>
+              <div style={{ color: "#B5DAF2", fontWeight: 700 }}>{valueLabel}: <Masked value={brl(hoverData[valueKey])} hidden={hidden} /></div>
             )}
-            <div style={{ color: COLORS.accent, fontWeight: 600, marginTop: 2 }}>Meta: <Masked value={brl(goal)} hidden={hidden} /></div>
+            <div style={{ color: COLORS.accent, fontWeight: 600, marginTop: 2 }}>{goalLabel}: <Masked value={brl(goal)} hidden={hidden} /></div>
           </div>
         )}
       </div>
@@ -1905,10 +1908,23 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
   );
   const [closing, setClosing] = useState(false);
   const itemSeq = useRef(1000);
+  /* Só um item fica aberto por vez; os demais viram uma linha-resumo que abre com um clique */
+  const [expandedId, setExpandedId] = useState(initial && initial.items.length > 1 ? null : 1);
+  const [focusId, setFocusId] = useState(null);
 
   /* A última categoria escolhida fica salva e já vem marcada no próximo produto / próxima venda */
-  const addItem = () => setItems((prev) => [...prev, { id: ++itemSeq.current, category: getLastCategory(categories), name: "", ref: "", price: "", qty: "1" }]);
-  const removeItem = (id) => setItems((prev) => (prev.length > 1 ? prev.filter((it) => it.id !== id) : prev));
+  const addItem = () => {
+    const blank = items.find((it) => !it.name.trim() && !it.price.trim());
+    if (blank) { setExpandedId(blank.id); setFocusId(blank.id); return; }
+    const id = ++itemSeq.current;
+    setItems((prev) => [...prev, { id, category: getLastCategory(categories), name: "", ref: "", price: "", qty: "1" }]);
+    setExpandedId(id); setFocusId(id);
+  };
+  const removeItem = (id) => {
+    setItems((prev) => (prev.length > 1 ? prev.filter((it) => it.id !== id) : prev));
+    setExpandedId((cur) => (cur === id ? null : cur));
+  };
+  const openId = items.length === 1 ? items[0].id : expandedId;
   const updateItem = (id, patch) => setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
 
   /* Valores sempre em centavos inteiros: nada de 9,99 x 3 = 29,969999 */
@@ -2158,7 +2174,31 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
             <button type="button" onClick={addItem} className="link-btn"><Plus size={13} /> Adicionar item</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {items.map((it) => (
+            {items.map((it) => (it.id !== openId ? (
+              <div
+                key={it.id} className="item-summary" role="button" tabIndex={0} aria-label={`Abrir item ${it.name.trim() || "sem nome"}`}
+                onClick={() => setExpandedId(it.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedId(it.id); } }}
+                style={{ background: MODAL.itemCardBg }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: it.name.trim() ? MODAL.text : MODAL.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.name.trim() || "Produto sem nome"}</div>
+                  <div style={{ fontSize: 12.5, color: MODAL.textDim, marginTop: 2, lineHeight: 1.35 }}>
+                    {[it.category, it.ref.trim() ? `Ref. ${it.ref.trim()}` : "", `${parseInt(it.qty, 10) || 0} × ${parseMoney(it.price) > 0 ? brl(parseMoney(it.price)) : "—"}`].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                {parseMoney(it.price) > 0 && (
+                  <span style={{ fontSize: 14, fontWeight: 800, color: COLORS.accent, whiteSpace: "nowrap" }}>
+                    {brl((Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0)) / 100)}
+                  </span>
+                )}
+                <ChevronDown size={15} color={MODAL.textDim} style={{ flexShrink: 0 }} />
+                <button type="button" className="icon-btn-plain" aria-label="Remover item" title="Remover item"
+                        onClick={(e) => { e.stopPropagation(); removeItem(it.id); }} style={{ width: 32, height: 32, flexShrink: 0 }}>
+                  <Trash2 size={14} color={MODAL.textFaint} />
+                </button>
+              </div>
+            ) : (
               <div key={it.id} style={{ background: MODAL.itemCardBg, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <div style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 2 }}>
@@ -2181,6 +2221,11 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                       {brl((Math.round(parseMoney(it.price) * 100) * (parseInt(it.qty, 10) || 0)) / 100)}
                     </span>
                   )}
+                  {items.length > 1 && (
+                    <button type="button" onClick={() => setExpandedId(null)} className="icon-btn-plain" aria-label="Recolher item" title="Recolher item" style={{ width: 40, height: 40, flexShrink: 0 }}>
+                      <ChevronUp size={15} color={MODAL.textFaint} />
+                    </button>
+                  )}
                   <button type="button" onClick={() => removeItem(it.id)} className="icon-btn-plain" style={{ width: 40, height: 40, flexShrink: 0 }}>
                     <Trash2 size={14} color={MODAL.textFaint} />
                   </button>
@@ -2189,7 +2234,7 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                   <div style={{ minWidth: 0, position: "relative" }}>
                     <Input
                       value={it.name} onChange={(v) => { updateItem(it.id, { name: v }); setSuggestFor(it.id); }} placeholder="Nome do produto"
-                      autoComplete="off" onFocus={() => setSuggestFor(it.id)} onBlur={() => setSuggestFor(null)}
+                      autoComplete="off" onFocus={() => { setSuggestFor(it.id); setFocusId(null); }} onBlur={() => setSuggestFor(null)} autoFocus={focusId === it.id}
                     />
                     {suggestFor === it.id && suggestionsFor(it).length > 0 && (
                       <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 25, background: MODAL.field, borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", overflow: "hidden", minWidth: 220 }}>
@@ -2213,38 +2258,47 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
           </div>
           {subtotal > 0 && (
             <p style={{ margin: "8px 0 0", fontSize: 13, color: MODAL.textFaint }}>Soma dos itens: {brl(subtotal)}</p>
           )}
         </div>
 
-        <div className="pay-row" style={{ marginBottom: splitMode ? 10 : 16, marginTop: 16 }}>
-          <div style={{ minWidth: 0 }}>
-            <label style={{ ...labelStyle, whiteSpace: "nowrap" }}>Forma de pagamento</label>
-            {!splitMode ? (
-              <>
-                <Select value={payment} onChange={setPayment}>
-                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </Select>
-                <button type="button" onClick={startSplit} className="link-btn quiet-link" style={{ marginTop: 6, marginLeft: -4 }}>
-                  Dividir pagamento <ChevronDown size={13} />
-                </button>
-              </>
-            ) : (
-              <div style={{ height: 40, display: "flex", alignItems: "center", fontSize: 13.5, color: MODAL.textDim, fontWeight: 600 }}>Dividido em {payRows.length} formas</div>
-            )}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <label style={{ ...labelStyle, whiteSpace: "nowrap" }}><LabelText text="Total final (com desconto já aplicado)" /></label>
-            <Input inputMode="decimal" value={totalFinal} onChange={(v) => setTotalFinal(cleanMoneyText(v))} placeholder="0,00" />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6, marginRight: -4 }}>
-              <button type="button" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen} className="link-btn quiet-link">
-                {notes.trim() && !notesOpen ? "Ver observação" : "Adicionar observação"}
-                <ChevronDown size={13} style={{ transition: "transform 0.35s ease", transform: notesOpen ? "rotate(180deg)" : "none" }} />
+        <div style={{ marginTop: 16, marginBottom: 14 }}>
+          <label style={{ ...labelStyle, whiteSpace: "nowrap" }}>Forma de pagamento</label>
+          {!splitMode ? (
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {PAYMENT_METHODS.map((m) => {
+                  const on = payment === m;
+                  return (
+                    <button
+                      key={m} type="button" className="cat-chip" aria-pressed={on} onClick={() => setPayment(m)}
+                      style={{ background: on ? COLORS.accent : "rgba(255,255,255,0.14)", color: on ? "#16324A" : "#FFFFFF", fontWeight: on ? 800 : 600 }}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={startSplit} className="link-btn quiet-link" style={{ marginTop: 8, marginLeft: -4 }}>
+                Dividir pagamento <ChevronDown size={13} />
               </button>
-            </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", minHeight: 24, fontSize: 13.5, color: MODAL.textDim, fontWeight: 600 }}>Dividido em {payRows.length} formas</div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: splitMode ? 10 : 16 }}>
+          <label style={{ ...labelStyle, whiteSpace: "nowrap" }}><LabelText text="Total final (com desconto já aplicado)" /></label>
+          <Input inputMode="decimal" value={totalFinal} onChange={(v) => setTotalFinal(cleanMoneyText(v))} placeholder="0,00" />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6, marginRight: -4 }}>
+            <button type="button" onClick={() => setNotesOpen((v) => !v)} aria-expanded={notesOpen} className="link-btn quiet-link">
+              {notes.trim() && !notesOpen ? "Ver observação" : "Adicionar observação"}
+              <ChevronDown size={13} style={{ transition: "transform 0.35s ease", transform: notesOpen ? "rotate(180deg)" : "none" }} />
+            </button>
           </div>
         </div>
 
@@ -2604,6 +2658,7 @@ function SaleDetailModal({ sale, hidden, onClose, onCancelSale, onCancelProduct,
 }
 
 const SORT_FIELDS = [
+  { key: "recent", label: "Ordem de registro" },
   { key: "seller", label: "Vendedora" },
   { key: "payment", label: "Forma de pagamento" },
   { key: "value", label: "Valor" },
@@ -2615,14 +2670,14 @@ function saleValue(s) {
 }
 
 function directionLabel(field, desc) {
-  if (field === "time") return desc ? "Mais recentes no topo" : "Mais antigas no topo";
+  if (field === "time" || field === "recent") return desc ? "Mais recentes no topo" : "Mais antigas no topo";
   if (field === "value") return desc ? "Maior valor no topo" : "Menor valor no topo";
   return desc ? "Z–A" : "A–Z";
 }
 
 function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct, onRestoreSale, onRestoreProduct, onEditSale, sellerDirectory }) {
   const [closing, setClosing] = useState(false);
-  const [sortField, setSortField] = useState("time");
+  const [sortField, setSortField] = useState("recent");
   const [sortDesc, setSortDesc] = useState(true);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
@@ -2660,7 +2715,8 @@ function SalesListModal({ onClose, sales, hidden, onCancelSale, onCancelProduct,
 
   const sorted = [...sales].sort((a, b) => {
     let cmp = 0;
-    if (sortField === "time") cmp = a.time < b.time ? -1 : a.time > b.time ? 1 : (a.createdAt || 0) - (b.createdAt || 0);
+    if (sortField === "recent") cmp = ((a.createdAt || 0) - (b.createdAt || 0)) || (a.time < b.time ? -1 : a.time > b.time ? 1 : 0);
+    else if (sortField === "time") cmp = a.time < b.time ? -1 : a.time > b.time ? 1 : (a.createdAt || 0) - (b.createdAt || 0);
     else if (sortField === "seller") cmp = a.seller.localeCompare(b.seller, "pt-BR");
     else if (sortField === "payment") cmp = a.payment.localeCompare(b.payment, "pt-BR");
     else if (sortField === "value") cmp = saleValue(a) - saleValue(b);
@@ -3157,7 +3213,15 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
   const byDay = {};
   days.forEach((d) => { byDay[d.dia] = d; });
   const listDays = Array.from({ length: dim }, (_, i) => i + 1);
-  const chartData = days;
+  /* Evolução do mês: vendido acumulado do 0 até hoje (só sobe); dias futuros ficam sem linha */
+  const chartData = [{ dia: 0, acum: 0 }];
+  let accCents = 0;
+  days.forEach((d) => {
+    if (d.vendas == null) return;
+    accCents += Math.round(d.vendas * 100);
+    chartData.push({ dia: d.dia, acum: accCents / 100 });
+  });
+  const chartTicks = Array.from({ length: dim }, (_, i) => i + 1).filter((d) => d % 3 === 1 || d === dim);
   const rankingRows = monthSellerRanking;
 
   /* Ao abrir (ou trocar de mês) a lista rola até o dia de hoje */
@@ -3183,6 +3247,7 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
           .ov-main, .ov-row { grid-template-columns: 1fr !important; }
           .ov-row-1, .ov-row-2 { height: auto !important; }
           .ov-card { min-height: 340px; }
+          .ov-chart { min-height: 300px !important; }
         }
       `}</style>
       <HeaderBand>
@@ -3327,17 +3392,24 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
           </div>
 
           <div className="ov-row ov-row-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 0.75fr)", gap: 14, flex: "1 1 0", minHeight: 0 }}>
-            <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "140ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <div className="hoverable-panel fade-up ov-card ov-chart" style={{ animationDelay: "140ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
               <LineAreaChart
                 fill
                 title="Meta do mês"
-                subtitle="Valor vendido por dia comparado à meta"
+                subtitle="Vendido acumulado ao longo do mês"
                 data={chartData}
-                valueKey="vendas"
-                goal={todayGoal}
-                goalKey="meta"
-                xTickLabel={(d, i, arr) => (d.dia % 3 === 1 || i === arr.length - 1 ? String(d.dia) : null)}
-                tooltipLabel={(d) => `Dia ${d.dia}`}
+                valueKey="acum"
+                goal={monthlyGoal}
+                xKey="dia"
+                xMin={0}
+                xMax={dim}
+                xTicks={chartTicks}
+                xTickFmt={(t) => String(t)}
+                xTickLabel={() => null}
+                tooltipLabel={(d) => (d.dia === 0 ? "Início do mês" : `Até o dia ${d.dia}`)}
+                valueLabel="Acumulado"
+                goalLabel="Meta do mês"
+                endDot
                 hidden={false}
               />
             </div>

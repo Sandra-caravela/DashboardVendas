@@ -3188,6 +3188,114 @@ function AppHeader({ leftNav, actions, birthdayCount, onOpenBirthdays, onOpenSet
   );
 }
 
+/* Barras do mês: uma barra por dia, linha horizontal com a meta diária; dias que bateram a meta ficam mais claros */
+function DailyGoalBars({ title, subtitle, days, fallbackGoal, hidden }) {
+  const wrapRef = useRef(null);
+  const svgRef = useRef(null);
+  const [size, setSize] = useState({ w: 360, h: 200 });
+  const [hoverIdx, setHoverIdx] = useState(null);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w > 0 && h > 0) setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = Math.max(240, size.w), H = Math.max(130, size.h);
+  const padL = 40, padR = 8, padT = 12, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const N = days.length || 1;
+  const goalOf = (d) => (d.meta > 0 ? d.meta : fallbackGoal);
+  const info = days.map((d) => { const g = goalOf(d); const has = d.vendas != null; return { d, g, has, hit: has && g > 0 && d.vendas >= g }; });
+  const vals = days.filter((d) => d.vendas != null).map((d) => d.vendas);
+  const rawMax = (Math.max(...info.map((x) => x.g), ...(vals.length ? vals : [0])) || 1) * 1.05;
+  const niceStep = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 50000].find((s) => Math.ceil(rawMax / s) <= 4) || 100000;
+  const nTicks = Math.max(1, Math.ceil(rawMax / niceStep));
+  const yMax = nTicks * niceStep;
+  const tickLabel = (v) => (v === 0 ? "0" : v % 1000 === 0 ? `${v / 1000}k` : v < 1000 ? String(v) : `${(v / 1000).toFixed(1).replace(".", ",")}k`);
+  const yScale = (v) => padT + plotH - (v / yMax) * plotH;
+  const slot = plotW / N;
+  const barW = Math.max(3, Math.min(22, slot * 0.7));
+  const goalPath = info.map((x, i) => `${i === 0 ? "M" : "L"} ${(padL + slot * i).toFixed(1)} ${yScale(x.g).toFixed(1)} L ${(padL + slot * (i + 1)).toFixed(1)} ${yScale(x.g).toFixed(1)}`).join(" ");
+  const yTickVals = Array.from({ length: nTicks + 1 }, (_, i) => i * niceStep);
+  const handleMove = (e) => {
+    const rect = svgRef.current.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    const idx = Math.floor((relX - padL) / slot);
+    setHoverIdx(idx >= 0 && idx < N && info[idx].has ? idx : null);
+  };
+  const hv = hoverIdx != null ? info[hoverIdx] : null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
+        </div>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <Legend dot="#A7D4F0" label="Bateu a meta" />
+          <Legend dot={COLORS.accent} label="Meta do dia" dashed />
+        </div>
+      </div>
+      <div ref={wrapRef} style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width={W} height={H} onMouseMove={handleMove} onMouseLeave={() => setHoverIdx(null)}
+             style={{ display: "block", cursor: "crosshair", position: "absolute", top: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="dgbHit" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#B4DCF4" /><stop offset="100%" stopColor="#6FAED6" /></linearGradient>
+            <linearGradient id="dgbLow" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4C86AB" /><stop offset="100%" stopColor="#2A5775" /></linearGradient>
+          </defs>
+          {yTickVals.map((v, i) => (
+            <g key={i}>
+              <line x1={padL} x2={W - padR} y1={yScale(v)} y2={yScale(v)} stroke={COLORS.line} strokeWidth="1" />
+              <text x={padL - 8} y={yScale(v) + 4} textAnchor="end" fontSize="12" fill={COLORS.textFaint} fontFamily="Montserrat, sans-serif">{hidden ? "•••" : tickLabel(v)}</text>
+            </g>
+          ))}
+          {info.map((x, i) => {
+            const label = x.d.dia % 3 === 1 || x.d.dia === N ? String(x.d.dia) : null;
+            return label ? (
+              <text key={`l${i}`} x={padL + slot * (i + 0.5)} y={H - 8} textAnchor="middle" fontSize="11.5" fill={COLORS.textFaint} fontFamily="Montserrat, sans-serif">{label}</text>
+            ) : null;
+          })}
+          {info.map((x, i) => {
+            if (!x.has) return null;
+            const top = yScale(x.d.vendas);
+            const hgt = Math.max(1.5, padT + plotH - top);
+            return (
+              <rect
+                key={i} data-day={x.d.dia} data-hit={x.hit ? "1" : "0"}
+                x={padL + slot * i + (slot - barW) / 2} y={padT + plotH - hgt} width={barW} height={hgt} rx={Math.min(3, barW / 2)}
+                fill={x.hit ? "url(#dgbHit)" : "url(#dgbLow)"} opacity={hoverIdx != null && hoverIdx !== i ? 0.7 : 1}
+                stroke={hoverIdx === i ? COLORS.accent : "none"} strokeWidth="1.5"
+              />
+            );
+          })}
+          <path d={goalPath} stroke={COLORS.accent} strokeWidth="2" strokeDasharray="6 5" fill="none" />
+        </svg>
+        {hv && (
+          <div style={{
+            position: "absolute", left: `${((padL + slot * (hoverIdx + 0.5)) / W) * 100}%`, top: 4,
+            transform: padL + slot * (hoverIdx + 0.5) > W * 0.55 ? "translateX(-105%)" : "translateX(12px)",
+            background: COLORS.cardSoft, borderRadius: 12, padding: "9px 13px", boxShadow: "0 12px 28px rgba(0,0,0,0.35)", fontSize: 13.5, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 5,
+          }}>
+            <div style={{ color: "#EAF0F4", marginBottom: 5, fontWeight: 600 }}>Dia {hv.d.dia}</div>
+            <div style={{ color: "#B5DAF2", fontWeight: 700 }}>Vendido: <Masked value={brl(hv.d.vendas)} hidden={hidden} /></div>
+            <div style={{ color: COLORS.accent, fontWeight: 600, marginTop: 2 }}>Meta do dia: <Masked value={brl(hv.g)} hidden={hidden} /></div>
+            <div style={{ color: hv.hit ? "#BFE3F7" : COLORS.textDim, fontWeight: 700, marginTop: 4 }}>
+              {hv.hit ? "Meta batida" : hv.g > 0 ? `${Math.min(99, Math.floor((hv.d.vendas / hv.g) * 100))}% da meta` : "Sem meta"}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSellerRanking, closing, onOpenSettings, onExportPDF, birthdayCount, onOpenBirthdays, todayISO, monthOffset, onChangeMonth }) {
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -3395,7 +3503,7 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
             </div>
           </div>
 
-          <div className="ov-row ov-row-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 0.75fr)", gap: 14, flex: "1 1 0", minHeight: 0 }}>
+          <div className="ov-row ov-row-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, flex: "1 1 0", minHeight: 0 }}>
             <div className="hoverable-panel fade-up ov-card ov-chart" style={{ animationDelay: "140ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
               <LineAreaChart
                 fill
@@ -3417,7 +3525,10 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
                 hidden={false}
               />
             </div>
-            <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "180ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <div className="hoverable-panel fade-up ov-card ov-chart" style={{ animationDelay: "160ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <DailyGoalBars title="Meta diária" subtitle="Uma barra por dia do mês" days={days} fallbackGoal={todayGoal} hidden={false} />
+            </div>
+            <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "200ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
               <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0 }}>Ranking de vendedoras (mês)</h3>
               <p style={{ margin: "4px 0 10px", fontSize: 11.5, color: COLORS.textDim, flexShrink: 0 }}>{`Vendido: ${brl(closing.total)}`}</p>
               <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>

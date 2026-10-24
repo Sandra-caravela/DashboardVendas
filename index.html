@@ -770,7 +770,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   }
   .btn-success { background: linear-gradient(155deg, #218052 0%, #17633E 100%); }
   .btn-success:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(33,128,82,0.35); }
-  .btn-success:disabled { background: rgba(255,255,255,0.11); color: #FFFFFF; cursor: not-allowed; box-shadow: none; }
+  .btn-success:disabled { background: linear-gradient(155deg, #2A7552 0%, #215E42 100%); color: #FFFFFF; cursor: not-allowed; box-shadow: none; opacity: 0.85; }
   .btn-cancel { background: linear-gradient(155deg, #C23B2E 0%, #A02D22 100%); }
   .btn-cancel:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(194,59,46,0.35); }
 
@@ -838,16 +838,20 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   .sv-row { display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); column-gap: 18px; align-items: stretch; }
   .sv-divider { background: rgba(255,255,255,0.24); border-radius: 1px; }
   .pay-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-  .item-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px 100px 100px; gap: 8px; }
+  .item-row { display: grid; grid-template-columns: minmax(0, 1fr) 128px 116px 68px; gap: 8px; }
   @media (max-width: 560px) {
     .sv-row { grid-template-columns: minmax(0, 1fr); row-gap: 14px; }
     .sv-divider { display: none; }
     .pay-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-    .item-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+    .item-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.1fr) 68px; }
+    .is-text { flex-direction: column !important; align-items: stretch !important; gap: 0 !important; }
+    .is-text > span { max-width: 100% !important; }
+    .is-text > span:last-child { white-space: normal !important; }
     .item-row > :first-child { grid-column: 1 / -1; }
   }
 
-  .item-summary { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 8px 8px 8px 12px; cursor: pointer; transition: filter 0.25s ease, transform 0.25s ease; }
+  .item-summary { display: flex; align-items: center; gap: 8px; border-radius: 10px; padding: 4px 6px 4px 12px; min-height: 34px; cursor: pointer; transition: filter 0.25s ease, transform 0.25s ease; }
+  .is-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
   .item-summary:hover { filter: brightness(1.14); }
   .item-summary:focus-visible { outline: 2px solid #E2D1BD; outline-offset: 2px; }
   .field-focus:focus { box-shadow: 0 0 0 2px rgba(28,63,88,0.25); }
@@ -1861,16 +1865,16 @@ function ToggleChip({ label, on, onClick }) {
 /* Quantidade com setinhas: sobe/desce com um clique (também dá para digitar) */
 function QtyStepper({ value, onChange }) {
   const n = parseInt(value, 10) || 0;
-  const set = (v) => onChange(String(Math.max(1, Math.min(9999, v))));
+  const set = (v) => onChange(String(Math.max(1, Math.min(99, v))));
   return (
     <div className="qty-stepper" style={{ ...inputStyle, display: "flex", alignItems: "stretch", padding: 0, overflow: "hidden" }}>
       <input
         inputMode="numeric" value={value} aria-label="Quantidade" title="Quantidade"
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 2))}
         onBlur={() => { if (!(parseInt(value, 10) > 0)) onChange("1"); }}
-        style={{ flex: 1, minWidth: 0, width: "100%", border: "none", outline: "none", background: "transparent", textAlign: "center", fontSize: 14.5, fontWeight: 600, fontFamily: "Montserrat, sans-serif", color: MODAL.fieldText, padding: "0 0 0 6px" }}
+        style={{ flex: 1, minWidth: 0, width: "100%", border: "none", outline: "none", background: "transparent", textAlign: "center", fontSize: 14.5, fontWeight: 600, fontFamily: "Montserrat, sans-serif", color: MODAL.fieldText, padding: "0 0 0 4px" }}
       />
-      <div style={{ display: "flex", flexDirection: "column", width: 28, borderLeft: "1px solid #D5DEE6", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", width: 24, borderLeft: "1px solid #D5DEE6", flexShrink: 0 }}>
         <button type="button" className="qty-arrow" aria-label="Aumentar quantidade" onClick={() => set(n + 1)} style={{ borderBottom: "1px solid #D5DEE6" }}>
           <ChevronUp size={13} color={MODAL.fieldIcon} strokeWidth={2.6} />
         </button>
@@ -2174,18 +2178,18 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
             <button type="button" onClick={addItem} className="link-btn"><Plus size={13} /> Adicionar item</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {items.map((it) => (it.id !== openId ? (
+            {[...items].reverse().map((it) => (it.id !== openId ? (
               <div
                 key={it.id} className="item-summary" role="button" tabIndex={0} aria-label={`Abrir item ${it.name.trim() || "sem nome"}`}
                 onClick={() => setExpandedId(it.id)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedId(it.id); } }}
                 style={{ background: MODAL.itemCardBg }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: it.name.trim() ? MODAL.text : MODAL.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.name.trim() || "Produto sem nome"}</div>
-                  <div style={{ fontSize: 12.5, color: MODAL.textDim, marginTop: 2, lineHeight: 1.35 }}>
+                <div className="is-text">
+                  <span style={{ fontSize: 14, fontWeight: 700, color: it.name.trim() ? MODAL.text : MODAL.textFaint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0, maxWidth: "55%" }}>{it.name.trim() || "Produto sem nome"}</span>
+                  <span style={{ fontSize: 12.5, color: MODAL.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                     {[it.category, it.ref.trim() ? `Ref. ${it.ref.trim()}` : "", `${parseInt(it.qty, 10) || 0} × ${parseMoney(it.price) > 0 ? brl(parseMoney(it.price)) : "—"}`].filter(Boolean).join(" · ")}
-                  </div>
+                  </span>
                 </div>
                 {parseMoney(it.price) > 0 && (
                   <span style={{ fontSize: 14, fontWeight: 800, color: COLORS.accent, whiteSpace: "nowrap" }}>
@@ -2194,7 +2198,7 @@ function NovaVendaModal({ onClose, onSubmit, sellers, categories, clients, allSa
                 )}
                 <ChevronDown size={15} color={MODAL.textDim} style={{ flexShrink: 0 }} />
                 <button type="button" className="icon-btn-plain" aria-label="Remover item" title="Remover item"
-                        onClick={(e) => { e.stopPropagation(); removeItem(it.id); }} style={{ width: 32, height: 32, flexShrink: 0 }}>
+                        onClick={(e) => { e.stopPropagation(); removeItem(it.id); }} style={{ width: 28, height: 28, flexShrink: 0 }}>
                   <Trash2 size={14} color={MODAL.textFaint} />
                 </button>
               </div>

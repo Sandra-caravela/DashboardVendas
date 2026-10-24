@@ -854,6 +854,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
   .is-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
   .item-summary:hover { filter: brightness(1.14); }
   .item-summary:focus-visible { outline: 2px solid #E2D1BD; outline-offset: 2px; }
+  .tip-title { position: relative; display: inline-block; cursor: default; }
+  .tip-title::after {
+    content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); background: #0E2233; color: #F2E8D8;
+    font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; line-height: 1.25; padding: 6px 10px; border-radius: 8px;
+    white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(-3px); transition: opacity 0.2s ease, transform 0.2s ease; z-index: 40;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .tip-title:hover::after { opacity: 1; transform: none; }
   .field-focus:focus { box-shadow: 0 0 0 2px rgba(28,63,88,0.25); }
 
   .nav-btn {
@@ -1519,7 +1527,7 @@ function ProgressGaugeCard({ value, goalPct, sub, delay }) {
 /* ---------------------------------------------------------
    GENERIC LINE+AREA CHART (used for "Vendas do mês" and "Vendas de hoje")
 --------------------------------------------------------- */
-function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill, xKey, xMin, xMax, xTicks, xTickFmt, valueLabel = "Vendido", goalLabel = "Meta", endDot }) {
+function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey, xTickLabel, tooltipLabel, hidden, fill, xKey, xMin, xMax, xTicks, xTickFmt, valueLabel = "Vendido", goalLabel = "Meta", endDot, hoverSubtitle }) {
   const numericX = xKey != null;
   /* Measure the drawing area so the SVG is drawn 1:1 (no stretched text) and fits any card */
   const wrapRef = useRef(null);
@@ -1599,8 +1607,14 @@ function LineAreaChart({ title, subtitle, data: rawData, valueKey, goal, goalKey
     <div style={fill ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 } : undefined}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: fill ? 8 : 16, flexWrap: "wrap", gap: 10, flexShrink: 0 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
-          <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
+          {hoverSubtitle ? (
+            <h3 className="tip-title" data-tip={subtitle} style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
+          ) : (
+            <>
+              <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
+              <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
+            </>
+          )}
         </div>
         <div style={{ display: "flex", gap: 16 }}>
           <Legend dot={COLORS.blue} label={valueLabel} />
@@ -3189,7 +3203,7 @@ function AppHeader({ leftNav, actions, birthdayCount, onOpenBirthdays, onOpenSet
 }
 
 /* Barras do mês: uma barra por dia, linha horizontal com a meta diária; dias que bateram a meta ficam mais claros */
-function DailyGoalBars({ title, subtitle, days, fallbackGoal, hidden }) {
+function DailyGoalBars({ title, subtitle, days, fallbackGoal, hidden, hoverSubtitle }) {
   const wrapRef = useRef(null);
   const svgRef = useRef(null);
   const [size, setSize] = useState({ w: 360, h: 200 });
@@ -3235,8 +3249,14 @@ function DailyGoalBars({ title, subtitle, days, fallbackGoal, hidden }) {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
-          <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
+          {hoverSubtitle ? (
+            <h3 className="tip-title" data-tip={subtitle} style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
+          ) : (
+            <>
+              <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: COLORS.text }}>{title}</h3>
+              <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textFaint }}>{subtitle}</p>
+            </>
+          )}
         </div>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
           <Legend dot="#A7D4F0" label="Bateu a meta" />
@@ -3296,6 +3316,41 @@ function DailyGoalBars({ title, subtitle, days, fallbackGoal, hidden }) {
   );
 }
 
+/* Progresso do mês: vendido acumulado de 0 até hoje (só sobe) contra a meta mensal */
+function MonthProgressChart({ days, monthlyGoal, hidden, fill }) {
+  const dim = days.length;
+  const data = [{ dia: 0, acum: 0 }];
+  let accCents = 0;
+  days.forEach((d) => {
+    if (d.vendas == null) return;
+    accCents += Math.round(d.vendas * 100);
+    data.push({ dia: d.dia, acum: accCents / 100 });
+  });
+  const ticks = Array.from({ length: dim }, (_, i) => i + 1).filter((d) => d % 3 === 1 || d === dim);
+  return (
+    <LineAreaChart
+      fill={fill}
+      title="Meta do mês"
+      subtitle="Vendido acumulado ao longo do mês"
+      hoverSubtitle
+      data={data}
+      valueKey="acum"
+      goal={monthlyGoal}
+      xKey="dia"
+      xMin={0}
+      xMax={dim}
+      xTicks={ticks}
+      xTickFmt={(t) => String(t)}
+      xTickLabel={() => null}
+      tooltipLabel={(d) => (d.dia === 0 ? "Início do mês" : `Até o dia ${d.dia}`)}
+      valueLabel="Acumulado"
+      goalLabel="Meta do mês"
+      endDot
+      hidden={hidden}
+    />
+  );
+}
+
 function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSellerRanking, closing, onOpenSettings, onExportPDF, birthdayCount, onOpenBirthdays, todayISO, monthOffset, onChangeMonth }) {
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -3325,15 +3380,6 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
   const byDay = {};
   days.forEach((d) => { byDay[d.dia] = d; });
   const listDays = Array.from({ length: dim }, (_, i) => i + 1);
-  /* Evolução do mês: vendido acumulado do 0 até hoje (só sobe); dias futuros ficam sem linha */
-  const chartData = [{ dia: 0, acum: 0 }];
-  let accCents = 0;
-  days.forEach((d) => {
-    if (d.vendas == null) return;
-    accCents += Math.round(d.vendas * 100);
-    chartData.push({ dia: d.dia, acum: accCents / 100 });
-  });
-  const chartTicks = Array.from({ length: dim }, (_, i) => i + 1).filter((d) => d % 3 === 1 || d === dim);
   const rankingRows = monthSellerRanking;
 
   /* Ao abrir (ou trocar de mês) a lista rola até o dia de hoje */
@@ -3387,10 +3433,9 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
 
       <div className="ov-main" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 14, flex: 1, minHeight: 0 }}>
         <div className="ov-left" style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: 0 }}>
-          <div className="ov-row ov-row-1" style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.85fr) minmax(0, 1.15fr)", gap: 14, flex: "1.35 1 0", minHeight: 0 }}>
+          <div className="ov-row ov-row-1" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14, flex: "1.35 1 0", minHeight: 0 }}>
             <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "60ms", padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-              <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0 }}>Calendário</h3>
-              <p style={{ margin: "2px 0 8px", fontSize: 12, color: COLORS.textFaint, flexShrink: 0 }}>Toque em um dia para abrir a tela do dia</p>
+              <h3 className="tip-title" data-tip="Toque em um dia para abrir a tela do dia" style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0, alignSelf: "flex-start" }}>Calendário</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4, marginBottom: 5, flexShrink: 0 }}>
                 {weekdayLabels.map((w) => (
                   <div key={w} style={{ textAlign: "center", fontSize: 10.5, color: COLORS.textFaint, fontWeight: 700 }}>{w}</div>
@@ -3449,8 +3494,7 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
             </div>
 
             <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "100ms", display: "flex", flexDirection: "column", padding: "14px 16px", minHeight: 0 }}>
-              <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0 }}>Resumo por dia</h3>
-              <p style={{ margin: "2px 0 8px", fontSize: 12, color: COLORS.textFaint, flexShrink: 0 }}>Data · valor vendido · % da meta · vendedora nº 1</p>
+              <h3 className="tip-title" data-tip="Data · valor vendido · % da meta · vendedora nº 1" style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0, alignSelf: "flex-start" }}>Resumo por dia</h3>
               <div style={{ display: "flex", fontSize: 10.5, color: COLORS.textFaint, fontWeight: 700, padding: "0 10px", marginBottom: 5, flexShrink: 0 }}>
                 <div style={{ width: 88 }}>Data</div>
                 <div style={{ flex: 1 }}>Valor</div>
@@ -3505,28 +3549,10 @@ function MonthOverviewPage({ onOpenDay, days, todayGoal, monthlyGoal, monthSelle
 
           <div className="ov-row ov-row-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, flex: "1 1 0", minHeight: 0 }}>
             <div className="hoverable-panel fade-up ov-card ov-chart" style={{ animationDelay: "140ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <LineAreaChart
-                fill
-                title="Meta do mês"
-                subtitle="Vendido acumulado ao longo do mês"
-                data={chartData}
-                valueKey="acum"
-                goal={monthlyGoal}
-                xKey="dia"
-                xMin={0}
-                xMax={dim}
-                xTicks={chartTicks}
-                xTickFmt={(t) => String(t)}
-                xTickLabel={() => null}
-                tooltipLabel={(d) => (d.dia === 0 ? "Início do mês" : `Até o dia ${d.dia}`)}
-                valueLabel="Acumulado"
-                goalLabel="Meta do mês"
-                endDot
-                hidden={false}
-              />
+              <MonthProgressChart days={days} monthlyGoal={monthlyGoal} hidden={false} fill />
             </div>
             <div className="hoverable-panel fade-up ov-card ov-chart" style={{ animationDelay: "160ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <DailyGoalBars title="Meta diária" subtitle="Uma barra por dia do mês" days={days} fallbackGoal={todayGoal} hidden={false} />
+              <DailyGoalBars title="Meta diária" subtitle="Uma barra por dia do mês" hoverSubtitle days={days} fallbackGoal={todayGoal} hidden={false} />
             </div>
             <div className="hoverable-panel fade-up ov-card" style={{ animationDelay: "200ms", padding: "14px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
               <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: COLORS.text, flexShrink: 0 }}>Ranking de vendedoras (mês)</h3>
@@ -4592,17 +4618,7 @@ function SalesDashboard({ initial, email, onSignOut }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }} className="grid-secondary">
         <div className="hoverable-panel fade-up" style={{ animationDelay: "60ms" }}>
-          <LineAreaChart
-            title="Vendas do mês"
-            subtitle="Valor vendido por dia comparado à meta"
-            data={monthDaysSel}
-            goalKey="meta"
-            valueKey="vendas"
-            goal={todayGoal}
-            xTickLabel={(d, i, arr) => (d.dia % 3 === 1 || i === arr.length - 1 ? String(d.dia) : null)}
-            tooltipLabel={(d) => `Dia ${d.dia}`}
-            hidden={hidden}
-          />
+          <MonthProgressChart days={monthDaysSel} monthlyGoal={goalAt(`${selKey}-${pad2(monthDaysSel.length)}`).monthly} hidden={hidden} />
         </div>
         <div className="hoverable-panel fade-up" style={{ animationDelay: "100ms" }}>
           <LineAreaChart
